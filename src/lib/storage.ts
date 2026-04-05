@@ -1,5 +1,7 @@
 // Utilitaires pour gérer le localStorage de manière centralisée
 
+import type { UserProfileData } from '../types';
+
 // Clés de stockage
 export const STORAGE_KEYS = {
   TRANSACTIONS: 'transactions',
@@ -34,6 +36,34 @@ export const loadFromStorage = <T>(key: string, defaultValue: T): T => {
   }
   return defaultValue;
 };
+
+export const DEFAULT_USER_PROFILE: UserProfileData = {
+  firstName: 'Diallo',
+  lastName: 'Kiron',
+  email: 'diallo.kiron@email.com',
+  phone: '+221 77 123 45 67',
+  address: 'Dakar, Sénégal',
+  birthDate: '1995-03-15',
+  occupation: 'Développeur Web',
+  monthlyIncome: '500000',
+  memberSince: new Date().toISOString(),
+  avatarUrl: '',
+};
+
+/** Fusionne des champs dans le profil stocké (ignore les clés `undefined`). */
+export function mergeUserProfile(partial: Partial<UserProfileData>): void {
+  const current = loadFromStorage(STORAGE_KEYS.USER_PROFILE, DEFAULT_USER_PROFILE);
+  const base: UserProfileData = { ...DEFAULT_USER_PROFILE, ...current };
+  const next: UserProfileData = { ...base };
+  (Object.entries(partial) as [keyof UserProfileData, UserProfileData[keyof UserProfileData]][]).forEach(
+    ([key, value]) => {
+      if (value !== undefined) {
+        (next as Record<string, unknown>)[key] = value;
+      }
+    }
+  );
+  saveToStorage(STORAGE_KEYS.USER_PROFILE, next);
+}
 
 // Fonction pour supprimer des données
 export const removeFromStorage = (key: string): void => {

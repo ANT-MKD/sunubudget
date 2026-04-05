@@ -1,3 +1,19 @@
+export interface UserProfileData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  birthDate: string;
+  occupation: string;
+  monthlyIncome: string;
+  memberSince: string;
+  /** Data URL (base64) ou chaîne vide */
+  avatarUrl: string;
+}
+
+export type UserProfileRegistrationFields = Pick<UserProfileData, 'firstName' | 'lastName'>;
+
 export type TransactionType = 'income' | 'expense';
 
 export type TransactionStatus = 'completed' | 'pending';

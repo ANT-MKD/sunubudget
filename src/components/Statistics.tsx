@@ -1,6 +1,85 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BarChart3, PieChart, TrendingUp, Download, DollarSign, TrendingDown } from 'lucide-react';
 import { useTransactions } from '../hooks/useStorage';
+import type { Transaction } from '../types';
+
+const getCategoryColor = (category: string): string => {
+  const colors = {
+    Alimentation: '#EF4444',
+    Transport: '#3B82F6',
+    Logement: '#8B5CF6',
+    Loisirs: '#10B981',
+    Santé: '#F59E0B',
+    Vêtements: '#EC4899',
+    Éducation: '#06B6D4',
+    Technologie: '#6366F1',
+    Assurance: '#84CC16',
+    Impôts: '#F97316',
+    Cadeaux: '#A855F7',
+    Voyage: '#14B8A6',
+  };
+  return colors[category as keyof typeof colors] || '#6B7280';
+};
+
+const getCategoryIcon = (category: string): string => {
+  const icons = {
+    Alimentation: '🍽️',
+    Transport: '🚗',
+    Logement: '🏠',
+    Loisirs: '🎮',
+    Santé: '💊',
+    Vêtements: '👕',
+    Éducation: '📚',
+    Technologie: '💻',
+    Assurance: '🛡️',
+    Impôts: '📄',
+    Cadeaux: '🎁',
+    Voyage: '✈️',
+  };
+  return icons[category as keyof typeof icons] || '💰';
+};
+
+function buildMonthlyData(transactions: Transaction[]) {
+  const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+  const currentYear = new Date().getFullYear();
+
+  return months.map((month, index) => {
+    const monthTransactions = transactions.filter((t) => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getFullYear() === currentYear && transactionDate.getMonth() === index;
+    });
+
+    const income = monthTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const expense = monthTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+      month,
+      income,
+      expense,
+      net: income - expense,
+    };
+  });
+}
+
+function buildCategoryData(transactions: Transaction[]) {
+  const expenseTransactions = transactions.filter((t) => t.type === 'expense');
+  const categoryMap = new Map<string, number>();
+
+  expenseTransactions.forEach((transaction) => {
+    const current = categoryMap.get(transaction.category) || 0;
+    categoryMap.set(transaction.category, current + transaction.amount);
+  });
+
+  const totalExpenses = Array.from(categoryMap.values()).reduce((sum, amount) => sum + amount, 0);
+
+  return Array.from(categoryMap.entries()).map(([category, amount]) => ({
+    category,
+    amount,
+    percentage: totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0,
+    color: getCategoryColor(category),
+    icon: getCategoryIcon(category),
+  }));
+}
 
 const Statistics: React.FC = () => {
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
@@ -9,91 +88,10 @@ const Statistics: React.FC = () => {
   const [hoveredSlice, setHoveredSlice] = useState<number | null>(null);
   const [hoveredAreaPoint, setHoveredAreaPoint] = useState<number | null>(null);
 
-  // Utiliser les vraies données des transactions
   const [transactions] = useTransactions();
 
-  // Générer les données mensuelles basées sur les vraies transactions
-  const generateMonthlyData = () => {
-    const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-    const currentYear = new Date().getFullYear();
-    
-    return months.map((month, index) => {
-      const monthTransactions = transactions.filter(t => {
-        const transactionDate = new Date(t.date);
-        return transactionDate.getFullYear() === currentYear && transactionDate.getMonth() === index;
-      });
-      
-      const income = monthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-      const expense = monthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-      
-      return {
-        month,
-        income,
-        expense,
-        net: income - expense
-      };
-    });
-  };
-
-  // Générer les données de catégories basées sur les vraies transactions
-  const generateCategoryData = () => {
-    const expenseTransactions = transactions.filter(t => t.type === 'expense');
-    const categoryMap = new Map<string, number>();
-    
-    expenseTransactions.forEach(transaction => {
-      const current = categoryMap.get(transaction.category) || 0;
-      categoryMap.set(transaction.category, current + transaction.amount);
-    });
-    
-    const totalExpenses = Array.from(categoryMap.values()).reduce((sum, amount) => sum + amount, 0);
-    
-    return Array.from(categoryMap.entries()).map(([category, amount]) => ({
-      category,
-      amount,
-      percentage: totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0,
-      color: getCategoryColor(category),
-      icon: getCategoryIcon(category)
-    }));
-  };
-
-  const getCategoryColor = (category: string): string => {
-    const colors = {
-      'Alimentation': '#EF4444',
-      'Transport': '#3B82F6',
-      'Logement': '#8B5CF6',
-      'Loisirs': '#10B981',
-      'Santé': '#F59E0B',
-      'Vêtements': '#EC4899',
-      'Éducation': '#06B6D4',
-      'Technologie': '#6366F1',
-      'Assurance': '#84CC16',
-      'Impôts': '#F97316',
-      'Cadeaux': '#A855F7',
-      'Voyage': '#14B8A6'
-    };
-    return colors[category as keyof typeof colors] || '#6B7280';
-  };
-
-  const getCategoryIcon = (category: string): string => {
-    const icons = {
-      'Alimentation': '🍽️',
-      'Transport': '🚗',
-      'Logement': '🏠',
-      'Loisirs': '🎮',
-      'Santé': '💊',
-      'Vêtements': '👕',
-      'Éducation': '📚',
-      'Technologie': '💻',
-      'Assurance': '🛡️',
-      'Impôts': '📄',
-      'Cadeaux': '🎁',
-      'Voyage': '✈️'
-    };
-    return icons[category as keyof typeof icons] || '💰';
-  };
-
-  const monthlyData = generateMonthlyData();
-  const categoryExpenses = generateCategoryData();
+  const monthlyData = useMemo(() => buildMonthlyData(transactions), [transactions]);
+  const categoryExpenses = useMemo(() => buildCategoryData(transactions), [transactions]);
 
   // Calculer les statistiques globales
   const totalIncome = monthlyData.reduce((sum, data) => sum + data.income, 0);
@@ -103,21 +101,24 @@ const Statistics: React.FC = () => {
   const averageExpense = monthlyData.length > 0 ? Math.round(totalExpense / monthlyData.length) : 0;
   const savingsRate = totalIncome > 0 ? Math.round((totalNet / totalIncome) * 100) : 0;
 
-  // Calculate pie chart angles for category distribution
+  const pieSlices = useMemo(() => {
+    const totalExpenses = categoryExpenses.reduce((sum, cat) => sum + cat.amount, 0);
+    let currentAngle = 0;
+    return categoryExpenses.map((cat, index) => {
+      const angle = totalExpenses > 0 ? (cat.amount / totalExpenses) * 360 : 0;
+      const slice = {
+        ...cat,
+        startAngle: currentAngle,
+        endAngle: currentAngle + angle,
+        angle,
+        index,
+      };
+      currentAngle += angle;
+      return slice;
+    });
+  }, [categoryExpenses]);
+
   const totalExpenses = categoryExpenses.reduce((sum, cat) => sum + cat.amount, 0);
-  let currentAngle = 0;
-  const pieSlices = categoryExpenses.map((cat, index) => {
-    const angle = totalExpenses > 0 ? (cat.amount / totalExpenses) * 360 : 0;
-    const slice = {
-      ...cat,
-      startAngle: currentAngle,
-      endAngle: currentAngle + angle,
-      angle,
-      index
-    };
-    currentAngle += angle;
-    return slice;
-  });
 
   // Interactive Bar Chart Component - Amélioré
   const InteractiveBarChart = () => {

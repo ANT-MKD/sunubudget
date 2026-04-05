@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '../lib/storage';
+import { loadFromStorage, saveToStorage, STORAGE_KEYS, DEFAULT_USER_PROFILE } from '../lib/storage';
+import type { UserProfileData } from '../types';
 import type { Transaction, SavingsGoal, TontineGroup } from '../types';
 
 // Hook générique pour gérer le localStorage
@@ -122,17 +123,14 @@ export const useNotifications = () => {
 
 // Hook spécifique pour le profil utilisateur
 export const useUserProfile = () => {
-  const defaultProfile = {
-    firstName: 'Diallo',
-    lastName: 'Kiron',
-    email: 'diallo.kiron@email.com',
-    phone: '+221 77 123 45 67',
-    address: 'Dakar, Sénégal',
-    birthDate: '1995-03-15',
-    occupation: 'Développeur Web',
-    monthlyIncome: '500000',
-    memberSince: new Date().toISOString()
-  };
+  const [profileData, setProfileData] = useState<UserProfileData>(() => {
+    const loaded = loadFromStorage(STORAGE_KEYS.USER_PROFILE, DEFAULT_USER_PROFILE);
+    return { ...DEFAULT_USER_PROFILE, ...loaded };
+  });
 
-  return useLocalStorage(STORAGE_KEYS.USER_PROFILE, defaultProfile);
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.USER_PROFILE, profileData);
+  }, [profileData]);
+
+  return [profileData, setProfileData] as const;
 }; 

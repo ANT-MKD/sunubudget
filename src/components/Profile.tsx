@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { User, Mail, Phone, MapPin, Calendar, Edit, Camera, Shield, Bell, CreditCard } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { User, Mail, Phone, MapPin, Calendar, Edit, Camera, Shield, CreditCard, X } from 'lucide-react';
 import { useTransactions, useSavingsGoals, useChallenges, useUserProfile } from '../hooks/useStorage';
+import { fileToAvatarDataUrl } from '../lib/profilePhoto';
 
 const Profile: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Utiliser les hooks pour récupérer les vraies données
   const [transactions] = useTransactions();
@@ -57,6 +60,33 @@ const Profile: React.FC = () => {
     // Les données sont automatiquement sauvegardées via le hook
   };
 
+  const initials = `${profileData.firstName?.trim()?.[0] || '?'}${
+    profileData.lastName?.trim()?.[0] || '?'
+  }`.toUpperCase();
+
+  const handleAvatarPick = () => {
+    setAvatarError(null);
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setAvatarError(null);
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file);
+      setProfileData((prev) => ({ ...prev, avatarUrl: dataUrl }));
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : 'Impossible de charger l’image.');
+    }
+  };
+
+  const clearAvatar = () => {
+    setAvatarError(null);
+    setProfileData((prev) => ({ ...prev, avatarUrl: '' }));
+  };
+
   const accountStats = [
     { label: 'Membre depuis', value: getMemberSince(), icon: Calendar },
     { label: 'Transactions totales', value: totalTransactions.toString(), icon: CreditCard },
@@ -88,14 +118,50 @@ const Profile: React.FC = () => {
         <div className="lg:col-span-1">
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-700 mb-6">
             <div className="text-center">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={handleAvatarFile}
+              />
               <div className="relative inline-block mb-4">
-                <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                  {profileData.firstName[0]}{profileData.lastName[0]}
+                <div className="w-24 h-24 overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold ring-2 ring-white dark:ring-gray-800 shadow-lg">
+                  {profileData.avatarUrl ? (
+                    <img
+                      src={profileData.avatarUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span>{initials}</span>
+                  )}
                 </div>
-                <button className="absolute bottom-0 right-0 w-8 h-8 bg-white dark:bg-gray-800 rounded-full shadow-lg flex items-center justify-center border-2 border-gray-100 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <button
+                  type="button"
+                  onClick={handleAvatarPick}
+                  className="absolute bottom-0 right-0 w-8 h-8 bg-white dark:bg-gray-800 rounded-full shadow-lg flex items-center justify-center border-2 border-gray-100 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  title="Changer la photo"
+                  aria-label="Changer la photo de profil"
+                >
                   <Camera className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
+                {profileData.avatarUrl && (
+                  <button
+                    type="button"
+                    onClick={clearAvatar}
+                    className="absolute -top-1 -left-1 w-7 h-7 bg-red-500 text-white rounded-full shadow flex items-center justify-center hover:bg-red-600 transition-colors"
+                    title="Supprimer la photo"
+                    aria-label="Supprimer la photo de profil"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
+              {avatarError && (
+                <p className="mb-2 text-xs text-red-600 dark:text-red-400 px-2">{avatarError}</p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Jusqu’à ~850&nbsp;Ko · JPEG, PNG, WebP…</p>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">{profileData.firstName} {profileData.lastName}</h2>
               <p className="text-gray-600 dark:text-gray-400">{profileData.occupation}</p>
               <div className="mt-4 flex items-center justify-center space-x-4 text-sm text-gray-500">
@@ -132,35 +198,35 @@ const Profile: React.FC = () => {
         {/* Profile Details */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">Informations Personnelles</h3>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Informations Personnelles</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Prénom</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Prénom</label>
                 <input
                   type="text"
                   name="firstName"
                   value={profileData.firstName}
                   onChange={handleInputChange}
                   disabled={!isEditing}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all"
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nom</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nom</label>
                 <input
                   type="text"
                   name="lastName"
                   value={profileData.lastName}
                   onChange={handleInputChange}
                   disabled={!isEditing}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all"
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <input
@@ -169,13 +235,13 @@ const Profile: React.FC = () => {
                     value={profileData.email}
                     onChange={handleInputChange}
                     disabled={!isEditing}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Téléphone</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Téléphone</label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <input
@@ -184,13 +250,13 @@ const Profile: React.FC = () => {
                     value={profileData.phone}
                     onChange={handleInputChange}
                     disabled={!isEditing}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Adresse</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Adresse</label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <input
@@ -199,13 +265,13 @@ const Profile: React.FC = () => {
                     value={profileData.address}
                     onChange={handleInputChange}
                     disabled={!isEditing}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date de naissance</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date de naissance</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <input
@@ -214,32 +280,32 @@ const Profile: React.FC = () => {
                     value={profileData.birthDate}
                     onChange={handleInputChange}
                     disabled={!isEditing}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Profession</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Profession</label>
                 <input
                   type="text"
                   name="occupation"
                   value={profileData.occupation}
                   onChange={handleInputChange}
                   disabled={!isEditing}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all"
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Revenu mensuel (F CFA)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Revenu mensuel (F CFA)</label>
                 <input
                   type="number"
                   name="monthlyIncome"
                   value={profileData.monthlyIncome}
                   onChange={handleInputChange}
                   disabled={!isEditing}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all"
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 transition-all"
                 />
               </div>
             </div>

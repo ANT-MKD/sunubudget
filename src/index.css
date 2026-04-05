@@ -2,6 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+.landing-mesh {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(16, 185, 129, 0.22), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 100% 20%, rgba(6, 182, 212, 0.12), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 0% 80%, rgba(20, 184, 166, 0.14), transparent 45%);
+}
+
+.dark .landing-mesh {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(16, 185, 129, 0.35), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 100% 20%, rgba(6, 182, 212, 0.18), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 0% 80%, rgba(20, 184, 166, 0.2), transparent 45%);
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.dark .landing-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-12px) scale(1.02);
+  }
+}
+
+.animate-landing-float {
+  animation: landing-float 9s ease-in-out infinite;
+}
+
+.animate-landing-float-delayed {
+  animation: landing-float 11s ease-in-out infinite 1.5s;
+}
+
+@keyframes landing-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.landing-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: landing-marquee 32s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-marquee-track {
+    animation: none;
+  }
+}
+
 /* Empêcher le zoom automatique sur mobile lors du focus des champs */
 @media (max-width: 640px) {
   input,

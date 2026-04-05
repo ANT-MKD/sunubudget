@@ -12,21 +12,23 @@ export interface Notification {
   category?: 'transaction' | 'savings' | 'budget' | 'tontine' | 'achievement' | 'system';
 }
 
+function readNotifications(): Notification[] {
+  return loadFromStorage(STORAGE_KEYS.NOTIFICATIONS, [] as Notification[]);
+}
+
+function writeNotifications(notifications: Notification[]): void {
+  saveToStorage(STORAGE_KEYS.NOTIFICATIONS, notifications);
+}
+
+function emitUnreadCount(notifications: Notification[]): void {
+  window.dispatchEvent(
+    new CustomEvent('notificationsUpdated', {
+      detail: { unreadCount: notifications.filter((n) => !n.read).length },
+    })
+  );
+}
+
 class NotificationService {
-  private notifications: Notification[] = [];
-
-  constructor() {
-    this.loadNotifications();
-  }
-
-  private loadNotifications() {
-    this.notifications = loadFromStorage(STORAGE_KEYS.NOTIFICATIONS, []);
-  }
-
-  private saveNotifications() {
-    saveToStorage(STORAGE_KEYS.NOTIFICATIONS, this.notifications);
-  }
-
   // Générer une notification pour une nouvelle transaction
   createTransactionNotification(transaction: any) {
     const notification: Notification = {
@@ -38,7 +40,7 @@ class NotificationService {
       read: false,
       important: transaction.amount > 100000, // Important si > 100k F CFA
       action: 'Voir les détails',
-      category: 'transaction'
+      category: 'transaction',
     };
 
     this.addNotification(notification);
@@ -52,7 +54,7 @@ class NotificationService {
 
     switch (action) {
       case 'created':
-        title = 'Nouvel objectif d\'épargne créé';
+        title = "Nouvel objectif d'épargne créé";
         message = `Objectif "${goal.name}" créé avec un objectif de ${goal.target.toLocaleString()} F CFA`;
         type = 'success';
         break;
@@ -76,8 +78,8 @@ class NotificationService {
       timestamp: new Date().toISOString(),
       read: false,
       important: action === 'completed',
-      action: 'Voir l\'objectif',
-      category: 'savings'
+      action: "Voir l'objectif",
+      category: 'savings',
     };
 
     this.addNotification(notification);
@@ -116,7 +118,7 @@ class NotificationService {
       read: false,
       important: action === 'completed',
       action: 'Voir les défis',
-      category: 'achievement'
+      category: 'achievement',
     };
 
     this.addNotification(notification);
@@ -155,7 +157,7 @@ class NotificationService {
       read: false,
       important: action === 'payment',
       action: 'Voir la tontine',
-      category: 'tontine'
+      category: 'tontine',
     };
 
     this.addNotification(notification);
@@ -164,19 +166,20 @@ class NotificationService {
   // Générer une notification de budget
   createBudgetNotification(type: 'warning' | 'exceeded', amount: number, budget: number) {
     const percentage = Math.round((amount / budget) * 100);
-    
+
     const notification: Notification = {
       id: `budget_${type}_${Date.now()}`,
       title: type === 'exceeded' ? '⚠️ Budget dépassé' : '⚠️ Attention budget',
-      message: type === 'exceeded' 
-        ? `Vous avez dépassé votre budget de ${percentage}% (${amount.toLocaleString()} / ${budget.toLocaleString()} F CFA)`
-        : `Vous avez utilisé ${percentage}% de votre budget (${amount.toLocaleString()} / ${budget.toLocaleString()} F CFA)`,
+      message:
+        type === 'exceeded'
+          ? `Vous avez dépassé votre budget de ${percentage}% (${amount.toLocaleString()} / ${budget.toLocaleString()} F CFA)`
+          : `Vous avez utilisé ${percentage}% de votre budget (${amount.toLocaleString()} / ${budget.toLocaleString()} F CFA)`,
       type: type === 'exceeded' ? 'error' : 'warning',
       timestamp: new Date().toISOString(),
       read: false,
       important: true,
       action: 'Voir le budget',
-      category: 'budget'
+      category: 'budget',
     };
 
     this.addNotification(notification);
@@ -192,7 +195,7 @@ class NotificationService {
       timestamp: new Date().toISOString(),
       read: false,
       important,
-      category: 'system'
+      category: 'system',
     };
 
     this.addNotification(notification);
@@ -200,82 +203,58 @@ class NotificationService {
 
   // Ajouter une notification
   private addNotification(notification: Notification) {
-    this.notifications.unshift(notification);
-    
-    // Limiter à 100 notifications maximum
-    if (this.notifications.length > 100) {
-      this.notifications = this.notifications.slice(0, 100);
-    }
-    
-    this.saveNotifications();
-    
-    // Émettre un événement personnalisé pour notifier les composants
-    window.dispatchEvent(new CustomEvent('notificationsUpdated', {
-      detail: { unreadCount: this.getUnreadCount() }
-    }));
+    const notifications = readNotifications();
+    notifications.unshift(notification);
+    const next = notifications.length > 100 ? notifications.slice(0, 100) : notifications;
+    writeNotifications(next);
+    emitUnreadCount(next);
   }
 
   // Obtenir toutes les notifications
   getNotifications(): Notification[] {
-    return this.notifications;
+    return readNotifications();
   }
 
   // Marquer une notification comme lue
   markAsRead(id: string) {
-    this.notifications = this.notifications.map(notification =>
-      notification.id === id ? { ...notification, read: true } : notification
-    );
-    this.saveNotifications();
-    
-    // Émettre un événement personnalisé pour notifier les composants
-    window.dispatchEvent(new CustomEvent('notificationsUpdated', {
-      detail: { unreadCount: this.getUnreadCount() }
-    }));
+    const notifications = readNotifications();
+    const next = notifications.map((n) => (n.id === id ? { ...n, read: true } : n));
+    writeNotifications(next);
+    emitUnreadCount(next);
   }
 
   // Marquer toutes les notifications comme lues
   markAllAsRead() {
-    this.notifications = this.notifications.map(notification => ({ ...notification, read: true }));
-    this.saveNotifications();
-    
-    // Émettre un événement personnalisé pour notifier les composants
-    window.dispatchEvent(new CustomEvent('notificationsUpdated', {
-      detail: { unreadCount: this.getUnreadCount() }
-    }));
+    const notifications = readNotifications();
+    const next = notifications.map((n) => ({ ...n, read: true }));
+    writeNotifications(next);
+    emitUnreadCount(next);
   }
 
   // Supprimer une notification
   deleteNotification(id: string) {
-    this.notifications = this.notifications.filter(notification => notification.id !== id);
-    this.saveNotifications();
-    
-    // Émettre un événement personnalisé pour notifier les composants
-    window.dispatchEvent(new CustomEvent('notificationsUpdated', {
-      detail: { unreadCount: this.getUnreadCount() }
-    }));
+    const notifications = readNotifications();
+    const next = notifications.filter((n) => n.id !== id);
+    writeNotifications(next);
+    emitUnreadCount(next);
   }
 
   // Supprimer toutes les notifications
   clearAllNotifications() {
-    this.notifications = [];
-    this.saveNotifications();
-    
-    // Émettre un événement personnalisé pour notifier les composants
-    window.dispatchEvent(new CustomEvent('notificationsUpdated', {
-      detail: { unreadCount: this.getUnreadCount() }
-    }));
+    writeNotifications([]);
+    emitUnreadCount([]);
   }
 
   // Obtenir le nombre de notifications non lues
   getUnreadCount(): number {
-    return this.notifications.filter(notification => !notification.read).length;
+    return readNotifications().filter((n) => !n.read).length;
   }
 
   // Obtenir le nombre de notifications importantes
   getImportantCount(): number {
-    return this.notifications.filter(notification => notification.important).length;
+    return readNotifications().filter((n) => n.important).length;
   }
 }
 
 // Instance singleton du service
-export const notificationService = new NotificationService(); 
+export const notificationService = new NotificationService();

@@ -1,38 +1,39 @@
-import React, { useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { ArrowUpRight, ArrowDownRight, TrendingUp, Plus, Wallet, DollarSign, Target, Eye, Edit, Trash2 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from './ui';
-import { Page } from '../App';
+import { Card, CardHeader, CardTitle, CardContent, Button } from './ui';
+import { Page } from '../AppMain';
+import { useAuth } from '../contexts/AuthContext';
+import { displayNameFromEmail } from '../lib/displayName';
 import { useTransactions, useSavingsGoals } from '../hooks/useStorage';
-import { notificationService } from '../lib/notificationService';
 
 interface DashboardProps {
   onPageChange?: (page: Page) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onPageChange }) => {
+  const { user } = useAuth();
+  const greetingName = user ? displayNameFromEmail(user.email) : 'Utilisateur';
   // Utiliser les hooks de stockage pour récupérer les vraies données
   const [transactions] = useTransactions();
   const [savingsGoals] = useSavingsGoals();
 
-  // Les notifications de bienvenue ont été supprimées car elles ne sont pas nécessaires
-
-  // Calculer les statistiques basées sur les vraies données
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-  const balance = totalIncome - totalExpense;
-  const savingsRate = totalIncome > 0 ? Math.round((balance / totalIncome) * 100) : 0;
-
-  // Récupérer les 5 transactions les plus récentes (sans muter le state)
-  const recentTransactions = [...transactions]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+  const { totalIncome, totalExpense, balance, savingsRate, recentTransactions } = useMemo(() => {
+    const totalIncome = transactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const totalExpense = transactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    const balance = totalIncome - totalExpense;
+    const savingsRate = totalIncome > 0 ? Math.round((balance / totalIncome) * 100) : 0;
+    const recentTransactions = [...transactions]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+    return { totalIncome, totalExpense, balance, savingsRate, recentTransactions };
+  }, [transactions]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
       {/* Header */}
       <div className="mb-8 bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center mb-2">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">Bonjour, Diallo Kiron</h1>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">Bonjour, {greetingName}</h1>
           <span className="ml-2 text-2xl">👋</span>
         </div>
         <p className="text-gray-600 dark:text-gray-400 text-lg">Voici un aperçu de vos finances aujourd'hui</p>

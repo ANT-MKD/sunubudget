@@ -12,7 +12,7 @@ import {
   HelpCircle, 
   LogOut 
 } from 'lucide-react';
-import { Page } from '../App';
+import { Page } from '../AppMain';
 import { useTransactions, useChallenges, useBadges } from '../hooks/useStorage';
 import { notificationService } from '../lib/notificationService';
 
@@ -21,9 +21,10 @@ interface SidebarProps {
   onPageChange: (page: Page) => void;
   isOpen?: boolean;
   onClose?: () => void;
+  onLogout?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, isOpen = false, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, isOpen = false, onClose, onLogout }) => {
   // Utiliser les hooks pour récupérer les vraies données
   const [transactions] = useTransactions();
   const [challenges] = useChallenges();
@@ -188,7 +189,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, isOpen = f
 
         {/* Logout */}
         <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-          <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-300 hover:translate-x-1">
+          <button
+            type="button"
+            onClick={() => onLogout?.()}
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-300 hover:translate-x-1"
+          >
             <LogOut className="w-5 h-5" />
             <span className="font-medium">Déconnexion</span>
           </button>
