@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Search,
   MessageCircle,
-  Phone,
   Mail,
   Star,
   HelpCircle,
@@ -457,24 +456,10 @@ const HelpCenter: React.FC = () => {
                   <div className="flex items-center gap-3 p-3 border rounded-lg">
                     <Mail className="h-5 w-5 text-blue-500" />
                     <div>
-                      <p className="font-medium text-gray-900">Email</p>
-                      <p className="text-sm text-gray-600">support@samabudget.com</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <Phone className="h-5 w-5 text-green-500" />
-                    <div>
-                      <p className="font-medium text-gray-900">Téléphone</p>
-                      <p className="text-sm text-gray-600">+221 77 123 45 67</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <MessageCircle className="h-5 w-5 text-purple-500" />
-                    <div>
-                      <p className="font-medium text-gray-900">Chat en direct</p>
-                      <p className="text-sm text-gray-600">Disponible 9h-18h</p>
+                      <p className="font-medium text-gray-900">Contact</p>
+                      <p className="text-sm text-gray-600">
+                        Utilisez le formulaire sur cette page : c’est le canal privilégié pour nous écrire.
+                      </p>
                     </div>
                   </div>
                 </div>

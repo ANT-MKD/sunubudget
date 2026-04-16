@@ -317,7 +317,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
               </header>
 
               <div
-                className="login-demo mt-6 rounded-xl border border-slate-200/90 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-300"
+                className="login-note mt-6 rounded-xl border border-slate-200/90 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-300"
                 role="note"
               >
                 {mode === 'login' ? (

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Users, Plus, Calendar, DollarSign, Clock, UserCheck } from 'lucide-react';
-import { useTontines } from '../hooks/useStorage';
+import { useTontines, useUserProfile } from '../hooks/useStorage';
 import { notificationService } from '../lib/notificationService';
 import type { TontineGroup, TontineMember, MemberPayment, TontineTour } from '../types';
 import { groupCardColors } from './tontine/constants';
@@ -10,9 +10,13 @@ import TontineForm from './tontine/TontineForm';
 import TontineHistory from './tontine/TontineHistory';
 import TontineModal from './tontine/TontineModal';
 
-const HIGHLIGHT_MEMBER_NAME = 'Diallo Kiron';
-
 const Tontine: React.FC = () => {
+  const { profileData } = useUserProfile();
+  const highlightMemberName = [profileData.firstName, profileData.lastName]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(' ');
+
   const {
     myTontines,
     availableTontines,
@@ -440,7 +444,7 @@ const Tontine: React.FC = () => {
               tontine={tontine}
               colorClass={groupCardColors[index % groupCardColors.length]}
               formatMonth={formatMonth}
-              highlightMemberName={HIGHLIGHT_MEMBER_NAME}
+              highlightMemberName={highlightMemberName}
               onDetails={() => openModal('details', tontine)}
               onManage={() => openModal('manage', tontine)}
               onDelete={() => deleteTontine(tontine.id)}

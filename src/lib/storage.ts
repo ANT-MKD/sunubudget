@@ -37,16 +37,17 @@ export const loadFromStorage = <T>(key: string, defaultValue: T): T => {
   return defaultValue;
 };
 
+/** Valeurs par défaut pour le stockage local (hors Supabase) — aucune donnée fictive. */
 export const DEFAULT_USER_PROFILE: UserProfileData = {
-  firstName: 'Diallo',
-  lastName: 'Kiron',
-  email: 'diallo.kiron@email.com',
+  firstName: '',
+  lastName: '',
+  email: '',
   emailConfirmedAt: null,
-  phone: '+221 77 123 45 67',
-  address: 'Dakar, Sénégal',
-  birthDate: '1995-03-15',
-  occupation: 'Développeur Web',
-  monthlyIncome: '500000',
+  phone: '',
+  address: '',
+  birthDate: '',
+  occupation: '',
+  monthlyIncome: '',
   memberSince: new Date().toISOString(),
   avatarUrl: '',
 };

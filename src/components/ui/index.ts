@@ -23,7 +23,7 @@ export { Form } from './forms/Form';
 export { FormField } from './forms/FormField';
 
 // Feedback components
-export { Toast } from './feedback/Toast';
+export { ToastContainer } from './feedback/Toast';
 export { Alert } from './feedback/Alert';
 
 // Navigation components
