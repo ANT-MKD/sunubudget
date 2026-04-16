@@ -24,8 +24,7 @@ const Savings: React.FC = () => {
     color: 'bg-blue-500'
   });
 
-  // Utiliser le hook de stockage pour les objectifs d'épargne
-  const [savingsGoals, setSavingsGoals] = useSavingsGoals();
+  const { savingsGoals, addGoal, updateGoal, deleteGoal: removeGoal, addMoneyToGoal } = useSavingsGoals();
 
   // Filtrer les objectifs
   const filteredGoals = savingsGoals.filter(goal => {
@@ -99,14 +98,20 @@ const Savings: React.FC = () => {
     e.preventDefault();
 
     const targetValue = Number(formData.target);
+    const name = formData.name.trim();
 
-    if (!formData.name.trim()) {
+    if (!name) {
       setFormError('Veuillez saisir un nom d\'objectif.');
       return;
     }
 
+    if (savingsGoals.some((g) => g.name.toLowerCase() === name.toLowerCase() && (!selectedGoal || g.id !== selectedGoal.id))) {
+      setFormError('Un objectif avec ce nom existe déjà.');
+      return;
+    }
+
     if (!Number.isFinite(targetValue) || targetValue <= 0) {
-      setFormError('Veuillez saisir un montant cible valide supérieur à 0.');
+      setFormError('Veuillez saisir un montant cible valide strictement supérieur à 0.');
       return;
     }
 
@@ -115,58 +120,77 @@ const Savings: React.FC = () => {
       return;
     }
 
-    if (modalType === 'create') {
-      const newGoal: SavingsGoal = {
-        id: Date.now(),
-        name: formData.name,
-        type: formData.type,
-        current: 0,
-        target: targetValue,
-        deadline: formData.deadline,
-        percentage: 0,
-        color: formData.color,
-        description: formData.description
-      };
-      setSavingsGoals(prev => [...prev, newGoal]);
-      
-      // Créer une notification pour le nouvel objectif
-      notificationService.createSavingsNotification(newGoal, 'created');
-      
-    } else if (modalType === 'edit' && selectedGoal) {
-      const updatedGoal: SavingsGoal = {
-        ...selectedGoal,
-        name: formData.name,
-        type: formData.type,
-        target: targetValue,
-        deadline: formData.deadline,
-        color: formData.color,
-        description: formData.description,
-        percentage: selectedGoal.target > 0 ? (selectedGoal.current / targetValue) * 100 : 0
-      };
-      
-      setSavingsGoals(prev => prev.map(goal => 
-        goal.id === selectedGoal.id ? updatedGoal : goal
-      ));
-      
-      // Créer une notification pour la mise à jour
-      notificationService.createSavingsNotification(updatedGoal, 'updated');
+    const deadlineTs = Date.parse(formData.deadline);
+    if (Number.isNaN(deadlineTs)) {
+      setFormError('Date d\'échéance invalide.');
+      return;
     }
-    setFormError(null);
-    setShowModal(false);
+    if (deadlineTs <= Date.now()) {
+      setFormError('La date d\'échéance doit être dans le futur.');
+      return;
+    }
+
+    if (modalType === 'edit' && selectedGoal && targetValue <= selectedGoal.current) {
+      setFormError('Le montant cible doit être supérieur au montant déjà épargné.');
+      return;
+    }
+
+    void (async () => {
+      try {
+        if (modalType === 'create') {
+          const payload: Omit<SavingsGoal, 'id' | 'percentage'> = {
+            name,
+            type: formData.type,
+            current: 0,
+            target: targetValue,
+            deadline: formData.deadline,
+            color: formData.color,
+            description: formData.description,
+          };
+          await addGoal(payload);
+          await notificationService.createSavingsNotification(
+            { name, target: targetValue, current: 0, percentage: 0 },
+            'created'
+          );
+        } else if (modalType === 'edit' && selectedGoal) {
+          await updateGoal(selectedGoal.id, {
+            name,
+            type: formData.type,
+            target: targetValue,
+            deadline: formData.deadline,
+            color: formData.color,
+            description: formData.description,
+          });
+          const pct = selectedGoal.target > 0 ? (selectedGoal.current / targetValue) * 100 : 0;
+          await notificationService.createSavingsNotification(
+            { name, target: targetValue, current: selectedGoal.current, percentage: pct },
+            'updated'
+          );
+        }
+        setFormError(null);
+        setShowModal(false);
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Enregistrement impossible.');
+      }
+    })();
   };
 
   const deleteGoal = (id: number) => {
-    const goalToDelete = savingsGoals.find(g => g.id === id);
-    setSavingsGoals(prev => prev.filter(goal => goal.id !== id));
-    
-    // Créer une notification pour la suppression
-    if (goalToDelete) {
-      notificationService.createSystemNotification(
-        'Objectif d\'épargne supprimé',
-        `Objectif "${goalToDelete.name}" supprimé`,
-        'warning'
-      );
-    }
+    const goalToDelete = savingsGoals.find((g) => g.id === id);
+    void (async () => {
+      try {
+        await removeGoal(id);
+        if (goalToDelete) {
+          await notificationService.createSystemNotification(
+            'Objectif d\'épargne supprimé',
+            `Objectif "${goalToDelete.name}" supprimé`,
+            'warning'
+          );
+        }
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Suppression impossible.');
+      }
+    })();
   };
 
   const addMoney = (goalId: number, amount: number) => {
@@ -175,27 +199,28 @@ const Savings: React.FC = () => {
       return;
     }
 
-    setSavingsGoals(prev => prev.map(goal => {
-      if (goal.id === goalId) {
-        const newCurrent = goal.current + amount;
+    void (async () => {
+      try {
+        const goal = savingsGoals.find((g) => g.id === goalId);
+        if (!goal) return;
+        const newCurrent = Math.min(goal.current + amount, goal.target);
         const newPercentage = goal.target > 0 ? (newCurrent / goal.target) * 100 : 0;
-        const updatedGoal = {
-          ...goal,
-          current: newCurrent,
-          percentage: newPercentage
-        };
-        
-        // Vérifier si l'objectif est atteint
+        await addMoneyToGoal(goalId, amount);
         if (newPercentage >= 100 && goal.percentage < 100) {
-          notificationService.createSavingsNotification(updatedGoal, 'completed');
+          await notificationService.createSavingsNotification(
+            { ...goal, name: goal.name, current: newCurrent, percentage: newPercentage, target: goal.target },
+            'completed'
+          );
         } else if (newPercentage > goal.percentage) {
-          notificationService.createSavingsNotification(updatedGoal, 'updated');
+          await notificationService.createSavingsNotification(
+            { ...goal, name: goal.name, current: newCurrent, percentage: newPercentage, target: goal.target },
+            'updated'
+          );
         }
-        
-        return updatedGoal;
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Mise à jour impossible.');
       }
-      return goal;
-    }));
+    })();
   };
 
   return (

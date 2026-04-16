@@ -2,6 +2,8 @@ export interface UserProfileData {
   firstName: string;
   lastName: string;
   email: string;
+  /** ISO 8601 si l’e-mail est confirmé (colonne user_profiles.email_confirmed_at) */
+  emailConfirmedAt: string | null;
   phone: string;
   address: string;
   birthDate: string;
@@ -74,4 +76,27 @@ export interface TontineGroup {
   totalRounds: number;
 }
 
+/** Défi (aligné sur la table `challenges`) */
+export interface AppChallenge {
+  id: number;
+  title: string;
+  description: string;
+  progress: number;
+  reward: string;
+  deadline: string;
+  type: 'savings' | 'budget' | 'transactions' | 'custom';
+  status: 'active' | 'completed' | 'failed';
+  target?: number;
+  current?: number;
+}
 
+/** Badge (aligné sur la table `badges`) */
+export interface AppBadge {
+  id: number;
+  name: string;
+  description: string;
+  icon: string;
+  earned: boolean;
+  earnedDate?: string;
+  category: string;
+}

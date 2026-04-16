@@ -41,6 +41,7 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
   firstName: 'Diallo',
   lastName: 'Kiron',
   email: 'diallo.kiron@email.com',
+  emailConfirmedAt: null,
   phone: '+221 77 123 45 67',
   address: 'Dakar, Sénégal',
   birthDate: '1995-03-15',

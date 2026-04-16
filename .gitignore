@@ -24,4 +24,7 @@ dist-ssr
 *.sw?
 .env
 
+# Supabase CLI — état du lien au projet cloud (local)
+.supabase/
+
 .vercel

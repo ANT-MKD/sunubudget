@@ -1,0 +1,10 @@
+-- Schéma SunuBudget — source de vérité : migrations versionnées
+--
+-- Appliquez les fichiers dans l’ordre via Supabase CLI ou l’éditeur SQL du dashboard :
+--   supabase/migrations/001_initial_schema.sql
+--   supabase/migrations/002_row_level_security.sql
+--   supabase/migrations/003_indexes.sql
+--   supabase/migrations/004_triggers.sql
+--   supabase/migrations/005_storage.sql
+--
+-- Ne dupliquez pas manuellement ce fichier : il sert de point d’entrée documentaire.

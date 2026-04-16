@@ -13,7 +13,16 @@ import TontineModal from './tontine/TontineModal';
 const HIGHLIGHT_MEMBER_NAME = 'Diallo Kiron';
 
 const Tontine: React.FC = () => {
-  const { myTontines, setMyTontines, availableTontines, setAvailableTontines } = useTontines();
+  const {
+    myTontines,
+    availableTontines,
+    createTontine,
+    addMember: addMemberToTontine,
+    togglePayment: togglePaymentDb,
+    deleteMember: deleteMemberFromTontine,
+    deleteTontine: removeTontine,
+    passToNextMonth: advanceMonth,
+  } = useTontines();
 
   const [activeTab, setActiveTab] = useState<'my-tontines' | 'available' | 'create' | 'history'>('my-tontines');
   const [showModal, setShowModal] = useState(false);
@@ -147,66 +156,63 @@ const Tontine: React.FC = () => {
       return;
     }
 
-    const tontineId = `tontine_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const montant = Number(formData.montantCotisation);
+    const totalMembers = parseInt(formData.totalMembers, 10);
+    if (totalMembers < 2 || totalMembers > 50) {
+      setFormError('Le nombre de membres doit être entre 2 et 50.');
+      return;
+    }
+    if (!Number.isFinite(montant) || montant <= 0) {
+      setFormError('Le montant de cotisation doit être strictement positif.');
+      return;
+    }
 
-    const newTontine: TontineGroup = {
-      id: tontineId,
-      name: formData.name,
-      description: formData.description,
-      members: [],
-      cycle: 1,
-      tours: [],
-      montantCotisation: parseInt(formData.montantCotisation, 10),
-      currentMonth: getCurrentMonth(),
-      status: 'pending',
-      startDate: new Date().toISOString().split('T')[0],
-      totalRounds: parseInt(formData.totalMembers, 10),
-    };
-
-    setMyTontines((prev) => [...prev, newTontine]);
-    notificationService.createTontineNotification(newTontine, 'created');
-
-    setFormData({
-      name: '',
-      description: '',
-      montantCotisation: '',
-      totalMembers: '',
-      frequency: 'monthly',
-      rules: ['Paiements obligatoires à date fixe', 'Ordre de réception déterminé par tirage au sort'],
-    });
-    setFormError(null);
-    setActiveTab('my-tontines');
+    void (async () => {
+      try {
+        const newTontine = await createTontine({
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          montantCotisation: montant,
+          totalMembers,
+        });
+        await notificationService.createTontineNotification(newTontine, 'created');
+        setFormData({
+          name: '',
+          description: '',
+          montantCotisation: '',
+          totalMembers: '',
+          frequency: 'monthly',
+          rules: ['Paiements obligatoires à date fixe', 'Ordre de réception déterminé par tirage au sort'],
+        });
+        setFormError(null);
+        setActiveTab('my-tontines');
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Création impossible.');
+      }
+    })();
   };
 
   const addMember = () => {
     if (!selectedTontine || !memberFormData.name.trim()) return;
 
-    const newMember: TontineMember = {
-      id: `member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      name: memberFormData.name,
-      amount: parseInt(memberFormData.amount, 10) || selectedTontine.montantCotisation,
-      payments: [{ date: selectedTontine.currentMonth, paid: false }],
-      createdAt: new Date().toISOString(),
-    };
-
-    setMyTontines((prev) =>
-      prev.map((tontine) =>
-        tontine.id === selectedTontine.id ? { ...tontine, members: [...tontine.members, newMember] } : tontine
-      )
-    );
-
-    setSelectedTontine((prev) => {
-      if (!prev) return prev;
-      return { ...prev, members: [...prev.members, newMember] };
-    });
-
-    setMemberFormData({ name: '', amount: '' });
-
-    notificationService.createSystemNotification(
-      'Membre ajouté',
-      `Membre "${newMember.name}" ajouté à la tontine`,
-      'success'
-    );
+    void (async () => {
+      try {
+        const amount = parseInt(memberFormData.amount, 10) || selectedTontine.montantCotisation;
+        await addMemberToTontine(
+          selectedTontine.id,
+          { name: memberFormData.name.trim(), amount },
+          selectedTontine.currentMonth
+        );
+        setMemberFormData({ name: '', amount: '' });
+        await notificationService.createSystemNotification(
+          'Membre ajouté',
+          `Membre "${memberFormData.name.trim()}" ajouté à la tontine`,
+          'success'
+        );
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Ajout impossible.');
+      }
+    })();
   };
 
   const togglePayment = (memberId: string, paymentDate: string) => {
@@ -214,50 +220,23 @@ const Tontine: React.FC = () => {
 
     const member = selectedTontine.members.find((m) => m.id === memberId);
     const payment = member?.payments.find((p) => p.date === paymentDate);
-    const newPaidStatus = !payment?.paid;
+    const currentlyPaid = payment?.paid ?? false;
+    const newPaidStatus = !currentlyPaid;
 
-    setMyTontines((prev) =>
-      prev.map((tontine) =>
-        tontine.id === selectedTontine.id
-          ? {
-              ...tontine,
-              members: tontine.members.map((m: TontineMember) =>
-                m.id === memberId
-                  ? {
-                      ...m,
-                      payments: m.payments.map((p: MemberPayment) =>
-                        p.date === paymentDate ? { ...p, paid: !p.paid } : p
-                      ),
-                    }
-                  : m
-              ),
-            }
-          : tontine
-      )
-    );
-
-    setSelectedTontine((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        members: prev.members.map((m) =>
-          m.id === memberId
-            ? {
-                ...m,
-                payments: m.payments.map((p) => (p.date === paymentDate ? { ...p, paid: !p.paid } : p)),
-              }
-            : m
-        ),
-      };
-    });
-
-    if (member) {
-      notificationService.createSystemNotification(
-        newPaidStatus ? 'Paiement marqué comme effectué' : 'Paiement marqué comme non effectué',
-        `${member.name} - ${formatMonth(paymentDate)}`,
-        newPaidStatus ? 'success' : 'warning'
-      );
-    }
+    void (async () => {
+      try {
+        await togglePaymentDb(selectedTontine.id, memberId, paymentDate, currentlyPaid);
+        if (member) {
+          await notificationService.createSystemNotification(
+            newPaidStatus ? 'Paiement marqué comme effectué' : 'Paiement marqué comme non effectué',
+            `${member.name} - ${formatMonth(paymentDate)}`,
+            newPaidStatus ? 'success' : 'warning'
+          );
+        }
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Mise à jour impossible.');
+      }
+    })();
   };
 
   const deleteMember = (memberId: string) => {
@@ -265,99 +244,59 @@ const Tontine: React.FC = () => {
 
     const memberToDelete = selectedTontine.members.find((m) => m.id === memberId);
 
-    setMyTontines((prev) =>
-      prev.map((tontine) =>
-        tontine.id === selectedTontine.id
-          ? { ...tontine, members: tontine.members.filter((m: TontineMember) => m.id !== memberId) }
-          : tontine
-      )
-    );
-
-    setSelectedTontine((prev) => {
-      if (!prev) return prev;
-      return { ...prev, members: prev.members.filter((m) => m.id !== memberId) };
-    });
-
-    if (memberToDelete) {
-      notificationService.createSystemNotification(
-        'Membre supprimé',
-        `Membre "${memberToDelete.name}" supprimé de la tontine`,
-        'warning'
-      );
-    }
+    void (async () => {
+      try {
+        await deleteMemberFromTontine(memberId);
+        if (memberToDelete) {
+          await notificationService.createSystemNotification(
+            'Membre supprimé',
+            `Membre "${memberToDelete.name}" supprimé de la tontine`,
+            'warning'
+          );
+        }
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Suppression impossible.');
+      }
+    })();
   };
 
   const deleteTontine = (id: string) => {
     const tontineToDelete = myTontines.find((t) => t.id === id);
-    setMyTontines((prev) => prev.filter((t) => t.id !== id));
-
-    if (tontineToDelete) {
-      notificationService.createSystemNotification(
-        'Tontine supprimée',
-        `Tontine "${tontineToDelete.name}" supprimée`,
-        'warning'
-      );
-    }
+    void (async () => {
+      try {
+        await removeTontine(id);
+        if (tontineToDelete) {
+          await notificationService.createSystemNotification(
+            'Tontine supprimée',
+            `Tontine "${tontineToDelete.name}" supprimée`,
+            'warning'
+          );
+        }
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Suppression impossible.');
+      }
+    })();
   };
 
-  const joinTontine = (tontineId: string) => {
-    const tontine = availableTontines.find((t) => t.id === tontineId);
-    if (tontine) {
-      const updatedTontine = {
-        ...tontine,
-        members: [
-          {
-            id: Date.now().toString(),
-            name: HIGHLIGHT_MEMBER_NAME,
-            amount: tontine.montantCotisation,
-            payments: [{ date: getCurrentMonth(), paid: false }],
-            createdAt: new Date().toISOString(),
-          },
-        ],
-        status: 'active' as const,
-        currentMonth: getCurrentMonth(),
-      };
-      setMyTontines((prev) => [...prev, updatedTontine]);
-      setAvailableTontines((prev) => prev.filter((t) => t.id !== tontineId));
-    }
+  const joinTontine = (_tontineId: string) => {
     setShowModal(false);
   };
 
   const passToNextMonth = () => {
     if (!selectedTontine) return;
 
-    const [year, month] = selectedTontine.currentMonth.split('-').map(Number);
-    const nextDate = new Date(year, month, 1);
-    const nextMonth = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
-
-    setMyTontines((prev) =>
-      prev.map((tontine) =>
-        tontine.id === selectedTontine.id
-          ? {
-              ...tontine,
-              currentMonth: nextMonth,
-              cycle: Math.min(tontine.cycle + 1, tontine.totalRounds),
-              members: tontine.members.map((member: TontineMember) => ({
-                ...member,
-                payments: [...member.payments, { date: nextMonth, paid: false }],
-              })),
-            }
-          : tontine
-      )
-    );
-
-    setSelectedTontine((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        currentMonth: nextMonth,
-        cycle: Math.min(prev.cycle + 1, prev.totalRounds),
-        members: prev.members.map((member) => ({
-          ...member,
-          payments: [...member.payments, { date: nextMonth, paid: false }],
-        })),
-      };
-    });
+    void (async () => {
+      try {
+        await advanceMonth(
+          selectedTontine.id,
+          selectedTontine.currentMonth,
+          selectedTontine.totalRounds,
+          selectedTontine.cycle
+        );
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Passage au mois suivant impossible.');
+      }
+    })();
   };
 
   return (

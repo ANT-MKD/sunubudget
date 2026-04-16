@@ -1,0 +1,164 @@
+================================================================================
+SUNUBUDGET — FAIRE TOURNER L’APP AVEC SUPABASE (MIGRATION + CONFIG)
+================================================================================
+Tu peux migrer de DEUX façons. Choisis UNE seule pour la première fois.
+
+  • MÉTHODE B — CLI (recommandée pour suivre les migrations dans le repo).
+  • MÉTHODE A — Tableau de bord (SQL Editor) : secours si la CLI bloque.
+
+Après la migration, les étapes C → F sont identiques pour tout le monde.
+
+Scripts npm (à la racine du projet sunubudget) :
+  npm run supabase:login   → ouvre le navigateur pour te connecter à Supabase
+  npm run supabase:link    → à lancer avec ton project-ref (voir Méthode B)
+  npm run supabase:push    → applique supabase/migrations/*.sql sur le cloud
+  npm run supabase:status  → liste tes projets (après login)
+
+
+--------------------------------------------------------------------------------
+MÉTHODE A — MIGRATION VIA LE TABLEAU DE BORD (RECOMMANDÉ SI DÉBUT)
+--------------------------------------------------------------------------------
+
+Étape A1 — Ouvrir ton projet Supabase
+  • Va sur https://supabase.com/dashboard
+  • Clique sur ton projet SunuBudget.
+
+Étape A2 — Lancer le script SQL complet
+  • Menu de gauche : SQL → New query
+  • Sur ton PC, ouvre le fichier :
+      supabase/DEPLOY_ALL_IN_ONE.sql
+  • Sélectionne TOUT le texte (Ctrl+A), copie, colle dans l’éditeur SQL.
+  • Clique Run (ou Ctrl+Enter).
+
+Étape A3 — Si une erreur apparaît
+  • Erreur "relation already exists" : des tables existent déjà. Soit tu crées
+    un nouveau projet Supabase vide, soit il faut adapter le script (dis-moi
+    le message exact).
+  • Erreur sur "EXECUTE FUNCTION" : dans la partie triggers du fichier,
+    remplace EXECUTE FUNCTION par EXECUTE PROCEDURE sur chaque CREATE TRIGGER,
+    puis relance uniquement la partie qui a échoué (ou tout le script sur
+    projet vierge).
+
+Étape A4 — Vérifier que c’est bon
+  • Menu Table Editor : tu dois voir des tables comme user_profiles,
+    transactions, savings_goals, tontines, notifications, etc.
+
+
+--------------------------------------------------------------------------------
+MÉTHODE B — MIGRATION AVEC LA CLI (ÉTAPES DANS L’ORDRE)
+--------------------------------------------------------------------------------
+
+Prérequis : Node.js + npm. Une fois dans le dossier du projet : npm install
+
+Étape B1 — Terminal à la racine du projet
+  cd C:\Users\mycomputer\Desktop\sunubudget
+
+Étape B2 — Connexion à ton compte Supabase
+  npm run supabase:login
+
+  • Une page s’ouvre : connecte-toi et autorise la CLI.
+  • Le terminal affiche "Finished supabase login" ou équivalent.
+
+Étape B3 — Récupérer le Reference ID du projet
+  • https://supabase.com/dashboard → ouvre ton projet SunuBudget.
+  • Project Settings (engrenage) → General.
+  • Copie "Reference ID" (chaîne courte, ex. zyxwvutsrqponmlk).
+
+Étape B4 — Lier ce repo à CE projet cloud
+  npm run supabase:link -- --project-ref TON_REFERENCE_ID_ICI
+
+  Exemple si ton ID est abcdefghijklmnop :
+  npm run supabase:link -- --project-ref abcdefghijklmnop
+
+  • Si on demande le mot de passe de la base : c’est le mot de passe PostgreSQL
+    du projet (défini à la création). Tu le retrouves ou le réinitialises dans :
+    Project Settings → Database → Database password (section "Reset database password"
+    si tu l’as oublié).
+
+Étape B5 — Pousser les migrations (schéma sur Supabase)
+  npm run supabase:push
+
+  Fichiers appliqués dans l’ordre :
+    001_initial_schema.sql
+    002_row_level_security.sql
+    003_indexes.sql
+    004_triggers.sql
+    005_storage.sql
+    006_user_profiles_email_confirmed.sql
+
+  Erreur "EXECUTE FUNCTION" : ouvre supabase/migrations/004_triggers.sql,
+  remplace EXECUTE FUNCTION par EXECUTE PROCEDURE (chaque CREATE TRIGGER),
+  sauvegarde, relance : npm run supabase:push
+
+Étape B6 — Vérifier
+  • Dashboard → Table Editor : tables user_profiles, transactions, etc.
+  • Optionnel : npm run supabase:status → doit lister ton organisation / projets.
+
+
+--------------------------------------------------------------------------------
+ÉTAPE C — CONFIGURER L’APP (FICHIER .env)
+--------------------------------------------------------------------------------
+
+Étape C1 — Récupérer l’URL et la clé publique
+  • Dashboard → Project Settings → API
+  • Copie "Project URL"
+  • Copie "anon" / "public" key (PAS la service_role)
+
+Étape C2 — À la racine du repo (sunubudget), édite le fichier .env
+  VITE_SUPABASE_URL=https://xxxx.supabase.co
+  VITE_SUPABASE_ANON_KEY=eyJhbGciOiJI...
+
+  Enregistre le fichier.
+
+
+--------------------------------------------------------------------------------
+ÉTAPE D — AUTH (OBLIGATOIRE POUR EMAIL + RÉINITIALISATION MOT DE PASSE)
+--------------------------------------------------------------------------------
+
+Dashboard → Authentication → URL Configuration
+
+  • Site URL : http://localhost:5173
+
+  • Redirect URLs : ajoute au moins :
+      http://localhost:5173/**
+      http://127.0.0.1:5173/**
+
+Enregistre.
+
+Confirmation e-mail (recommandé en production)
+
+  • Dashboard → Authentication → Providers → Email
+  • Active « Confirm email » (l’utilisateur reçoit un lien ; après clic,
+    auth.users.email_confirmed_at est renseigné).
+  • La migration 006 ajoute la colonne public.user_profiles.email_confirmed_at,
+    mise à jour automatiquement depuis auth (inscription + après confirmation).
+
+Si « Confirm email » est désactivé, la session peut être créée tout de suite
+à l’inscription et email_confirmed_at peut rester NULL selon la config Supabase.
+
+
+--------------------------------------------------------------------------------
+ÉTAPE E — LANCER L’APPLICATION EN LOCAL
+--------------------------------------------------------------------------------
+
+À la racine du projet :
+
+  npm install
+  npm run dev
+
+Ouvre http://localhost:5173 → Inscription ou Connexion.
+
+
+--------------------------------------------------------------------------------
+ÉTAPE F — VÉRIFICATION RAPIDE
+--------------------------------------------------------------------------------
+
+  • Après inscription : Table Editor → auth.users (ou user_profiles) : une
+    ligne pour ton utilisateur. Si la confirmation e-mail est activée,
+    user_profiles.email_confirmed_at se remplit après clic sur le lien du mail.
+  • Dans l’app : crée une transaction → Table transactions : une ligne avec
+    ton user_id.
+
+================================================================================
+FIN — En cas de blocage, copie-colle le message d’erreur EXACT (SQL ou terminal)
+================================================================================

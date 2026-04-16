@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   BarChart3, 
   CreditCard, 
@@ -13,9 +13,7 @@ import {
   LogOut 
 } from 'lucide-react';
 import { Page } from '../AppMain';
-import { useTransactions, useChallenges, useBadges } from '../hooks/useStorage';
-import { notificationService } from '../lib/notificationService';
-
+import { useTransactions, useChallenges, useBadges, useNotificationCounts } from '../hooks/useStorage';
 interface SidebarProps {
   currentPage: Page;
   onPageChange: (page: Page) => void;
@@ -26,50 +24,14 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, isOpen = false, onClose, onLogout }) => {
   // Utiliser les hooks pour récupérer les vraies données
-  const [transactions] = useTransactions();
-  const [challenges] = useChallenges();
-  const [badges] = useBadges();
-  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
-  const [importantNotificationsCount, setImportantNotificationsCount] = useState(0);
+  const { transactions } = useTransactions();
+  const { challenges } = useChallenges();
+  const { badges } = useBadges();
+  const { unread: unreadNotificationsCount, important: importantNotificationsCount } = useNotificationCounts();
 
   // Calculer les compteurs dynamiques
   const transactionsCount = transactions.length;
-  const activeChallengesCount = challenges.filter(c => c.status === 'active').length;
-
-  // Charger les compteurs de notifications
-  useEffect(() => {
-    const loadNotificationCounts = () => {
-      const unreadCount = notificationService.getUnreadCount();
-      const importantCount = notificationService.getImportantCount();
-      setUnreadNotificationsCount(unreadCount);
-      setImportantNotificationsCount(importantCount);
-    };
-
-    loadNotificationCounts();
-
-    // Écouter les changements dans le localStorage
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'notifications') {
-        loadNotificationCounts();
-      }
-    };
-
-    // Écouter l'événement personnalisé de mise à jour des notifications
-    const handleNotificationsUpdated = (e: CustomEvent) => {
-      setUnreadNotificationsCount(e.detail.unreadCount);
-      // Recharger aussi le compteur des notifications importantes
-      const importantCount = notificationService.getImportantCount();
-      setImportantNotificationsCount(importantCount);
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('notificationsUpdated', handleNotificationsUpdated as EventListener);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('notificationsUpdated', handleNotificationsUpdated as EventListener);
-    };
-  }, []);
+  const activeChallengesCount = challenges.filter((c) => c.status === 'active').length;
 
   const menuItems = [
     { id: 'dashboard', label: 'Tableau de Bord', icon: BarChart3, badge: null },

@@ -26,12 +26,12 @@ export type Page =
   | 'settings';
 
 export function AppMain() {
-  const { logout } = useAuth();
+  const { signOut } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = () => {
-    logout();
+    void signOut();
   };
 
   const renderPage = () => {

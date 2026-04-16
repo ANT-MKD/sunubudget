@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus, Filter, Search, Calendar, ArrowUpRight, ArrowDownRight, Edit, Trash2, Download, X, DollarSign, ChevronLeft, ChevronRight, Trash } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input, Select, Modal, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } from './ui';
 import { useTransactions } from '../hooks/useStorage';
@@ -15,8 +15,8 @@ const Transactions: React.FC = () => {
   const itemsPerPage = 10;
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Utiliser le hook de stockage pour les transactions
-  const [transactions, setTransactions] = useTransactions();
+  const { transactions, addTransaction, updateTransaction, deleteTransaction: removeTransaction, clearAllTransactions } =
+    useTransactions();
 
   const [formData, setFormData] = useState({
     type: 'expense' as 'income' | 'expense',
@@ -87,83 +87,100 @@ const Transactions: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const amountValue = Number(formData.amount);
+    const desc = formData.description.trim();
 
     if (!formData.category.trim()) {
       setFormError('Veuillez choisir une catégorie.');
       return;
     }
 
-    if (!Number.isFinite(amountValue) || amountValue <= 0) {
-      setFormError('Veuillez saisir un montant valide supérieur à 0.');
+    if (desc.length < 2) {
+      setFormError('La description doit contenir au moins 2 caractères.');
       return;
     }
 
-    if (modalType === 'create') {
-      const newTransaction: Transaction = {
-        id: Date.now(),
-        type: formData.type,
-        category: formData.category,
-        description: formData.description,
-        date: formData.date,
-        amount: amountValue,
-        status: formData.status
-      };
-      setTransactions(prev => [newTransaction, ...prev]);
-      
-      // Créer une notification pour la nouvelle transaction
-      notificationService.createTransactionNotification(newTransaction);
-      
-    } else if (modalType === 'edit' && selectedTransaction) {
-      const updatedTransaction = {
-        ...selectedTransaction,
-        type: formData.type,
-        category: formData.category,
-        description: formData.description,
-        date: formData.date,
-        amount: amountValue,
-        status: formData.status
-      };
-      
-      setTransactions(prev => prev.map(transaction => 
-        transaction.id === selectedTransaction.id ? updatedTransaction : transaction
-      ));
-      
-      // Créer une notification pour la modification
-      notificationService.createSystemNotification(
-        'Transaction modifiée',
-        `${formData.type === 'income' ? 'Revenu' : 'Dépense'} modifié : ${formData.amount} F CFA pour ${formData.category}`,
-        'success'
-      );
+    if (!formData.date || Number.isNaN(Date.parse(formData.date))) {
+      setFormError('Date invalide.');
+      return;
     }
-    setFormError(null);
-    setShowModal(false);
+
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      setFormError('Veuillez saisir un montant valide strictement supérieur à 0.');
+      return;
+    }
+
+    void (async () => {
+      try {
+        if (modalType === 'create') {
+          await addTransaction({
+            type: formData.type,
+            category: formData.category.trim(),
+            description: desc,
+            date: formData.date,
+            amount: amountValue,
+            status: formData.status,
+          });
+          await notificationService.createTransactionNotification({
+            type: formData.type,
+            amount: amountValue,
+            category: formData.category,
+          });
+        } else if (modalType === 'edit' && selectedTransaction) {
+          await updateTransaction(selectedTransaction.id, {
+            type: formData.type,
+            category: formData.category.trim(),
+            description: desc,
+            date: formData.date,
+            amount: amountValue,
+            status: formData.status,
+          });
+          await notificationService.createSystemNotification(
+            'Transaction modifiée',
+            `${formData.type === 'income' ? 'Revenu' : 'Dépense'} modifié : ${formData.amount} F CFA pour ${formData.category}`,
+            'success'
+          );
+        }
+        setFormError(null);
+        setShowModal(false);
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Enregistrement impossible.');
+      }
+    })();
   };
 
   const deleteTransaction = (id: number) => {
-    const transactionToDelete = transactions.find(t => t.id === id);
-    setTransactions(prev => prev.filter(transaction => transaction.id !== id));
-    
-    // Créer une notification pour la suppression
-    if (transactionToDelete) {
-      notificationService.createSystemNotification(
-        'Transaction supprimée',
-        `${transactionToDelete.type === 'income' ? 'Revenu' : 'Dépense'} de ${transactionToDelete.amount.toLocaleString()} F CFA supprimé`,
-        'info'
-      );
-    }
+    const transactionToDelete = transactions.find((t) => t.id === id);
+    void (async () => {
+      try {
+        await removeTransaction(id);
+        if (transactionToDelete) {
+          await notificationService.createSystemNotification(
+            'Transaction supprimée',
+            `${transactionToDelete.type === 'income' ? 'Revenu' : 'Dépense'} de ${transactionToDelete.amount.toLocaleString()} F CFA supprimé`,
+            'info'
+          );
+        }
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Suppression impossible.');
+      }
+    })();
   };
 
-  const clearAllTransactions = () => {
+  const clearAllTransactionsLocal = () => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer toutes les transactions ? Cette action est irréversible.')) {
-      const transactionCount = transactions.length;
-      setTransactions([]);
-      
-      // Créer une notification pour la suppression de toutes les transactions
-      notificationService.createSystemNotification(
-        'Toutes les transactions supprimées',
-        `${transactionCount} transaction${transactionCount > 1 ? 's' : ''} supprimée${transactionCount > 1 ? 's' : ''}`,
-        'warning'
-      );
+      void (async () => {
+        try {
+          const transactionCount = transactions.length;
+          await clearAllTransactions();
+          await notificationService.createSystemNotification(
+            'Toutes les transactions supprimées',
+            `${transactionCount} transaction${transactionCount > 1 ? 's' : ''} supprimée${transactionCount > 1 ? 's' : ''}`,
+            'warning'
+          );
+        } catch (err) {
+          setFormError(err instanceof Error ? err.message : 'Suppression impossible.');
+        }
+      })();
     }
   };
 
@@ -436,7 +453,7 @@ const Transactions: React.FC = () => {
               {transactions.length > 0 && (
                 <Button 
                   variant="outline"
-                  onClick={clearAllTransactions}
+                  onClick={clearAllTransactionsLocal}
                   icon={Trash}
                   className="text-red-600 hover:text-red-700"
                 >

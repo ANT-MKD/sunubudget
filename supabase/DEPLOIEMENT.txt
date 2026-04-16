@@ -1,0 +1,34 @@
+SunuBudget — déployer le schéma sur ton projet Supabase
+=======================================================
+
+ÉTAPE 1 — Clés API (ne les partage jamais publiquement)
+--------------------------------------------------------
+1. Va sur https://supabase.com/dashboard
+2. Ouvre ton projet → Settings (engrenage) → API
+3. Copie :
+   - Project URL  → VITE_SUPABASE_URL dans le fichier .env à la racine du repo
+   - anon public  → VITE_SUPABASE_ANON_KEY dans .env
+   (Utilise la clé "anon" / "publishable", PAS la service_role.)
+
+ÉTAPE 2 — Exécuter le SQL
+--------------------------
+1. Dans le même projet : menu SQL → New query
+2. Ouvre le fichier (dans ton clone du repo) : supabase/DEPLOY_ALL_IN_ONE.sql
+3. Copie-colle TOUT le contenu dans l’éditeur, clique Run
+
+Si une erreur mentionne EXECUTE FUNCTION :
+- Remplace dans le bloc triggers (004) "EXECUTE FUNCTION" par "EXECUTE PROCEDURE"
+  sur chaque ligne CREATE TRIGGER ... EXECUTE ...
+
+ÉTAPE 3 — Auth (recommandé pour le dev local)
+----------------------------------------------
+Settings → Authentication → URL Configuration :
+- Site URL : http://localhost:5173
+- Redirect URLs : ajoute http://localhost:5173/** et http://127.0.0.1:5173/**
+
+ÉTAPE 4 — Lancer l’app
+----------------------
+À la racine : npm run dev
+Ouvre http://localhost:5173 → Inscription / Connexion.
+
+Référence : les migrations modulaires restent dans supabase/migrations/ (001 à 005).

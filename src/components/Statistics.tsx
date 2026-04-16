@@ -88,7 +88,7 @@ const Statistics: React.FC = () => {
   const [hoveredSlice, setHoveredSlice] = useState<number | null>(null);
   const [hoveredAreaPoint, setHoveredAreaPoint] = useState<number | null>(null);
 
-  const [transactions] = useTransactions();
+  const { transactions } = useTransactions();
 
   const monthlyData = useMemo(() => buildMonthlyData(transactions), [transactions]);
   const categoryExpenses = useMemo(() => buildCategoryData(transactions), [transactions]);

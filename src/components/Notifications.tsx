@@ -1,43 +1,57 @@
-import React, { useState, useEffect } from 'react';
-import { Bell, Check, X, AlertCircle, Info, Star, Clock, Filter, Search, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Bell, Check, X, AlertCircle, Info, Star, Clock, Search, Trash2 } from 'lucide-react';
 import { notificationService, Notification } from '../lib/notificationService';
+import { supabase } from '../lib/supabase';
+
+function mapDbToNotification(row: Record<string, unknown>): Notification {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    message: String(row.message),
+    type: row.type as Notification['type'],
+    timestamp: String(row.created_at),
+    read: Boolean(row.read),
+    important: Boolean(row.important),
+    action: row.action ? String(row.action) : undefined,
+    category: (row.category as Notification['category']) ?? undefined,
+  };
+}
 
 const Notifications: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'unread' | 'important'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Charger les notifications depuis le service
-  useEffect(() => {
-    const loadNotifications = () => {
-      const currentNotifications = notificationService.getNotifications();
-      setNotifications(currentNotifications);
-    };
-
-    loadNotifications();
-
-    // Les notifications de test ont été supprimées
-
-    // Écouter les changements dans le localStorage
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'notifications') {
-        loadNotifications();
-      }
-    };
-
-    // Écouter l'événement personnalisé de mise à jour des notifications
-    const handleNotificationsUpdated = () => {
-      loadNotifications();
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('notificationsUpdated', handleNotificationsUpdated);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('notificationsUpdated', handleNotificationsUpdated);
-    };
+  const loadNotifications = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    if (error) {
+      setLoadError(error.message);
+      return;
+    }
+    setLoadError(null);
+    setNotifications((data || []).map((r) => mapDbToNotification(r as Record<string, unknown>)));
   }, []);
+
+  useEffect(() => {
+    void loadNotifications();
+    const handleNotificationsUpdated = () => {
+      void loadNotifications();
+    };
+    window.addEventListener('notificationsUpdated', handleNotificationsUpdated);
+    return () => window.removeEventListener('notificationsUpdated', handleNotificationsUpdated);
+  }, [loadNotifications]);
 
   // Filtrer les notifications
   const filteredNotifications = notifications.filter(notification => {
@@ -52,35 +66,58 @@ const Notifications: React.FC = () => {
     return matchesFilter && matchesSearch;
   });
 
-  const markAsRead = (id: string) => {
-    notificationService.markAsRead(id);
-    setNotifications(notificationService.getNotifications());
+  const markAsRead = async (id: string) => {
+    try {
+      await notificationService.markAsRead(id);
+      await loadNotifications();
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Impossible de marquer comme lu.');
+    }
   };
 
-  const markAllAsRead = () => {
-    notificationService.markAllAsRead();
-    setNotifications(notificationService.getNotifications());
+  const markAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      await loadNotifications();
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Action impossible.');
+    }
   };
 
   const deleteNotification = (id: string) => {
-    const notificationToDelete = notifications.find(n => n.id === id);
-    if (notificationToDelete && window.confirm(`Êtes-vous sûr de vouloir supprimer la notification "${notificationToDelete.title}" ?`)) {
-      notificationService.deleteNotification(id);
-      setNotifications(notificationService.getNotifications());
+    const notificationToDelete = notifications.find((n) => n.id === id);
+    if (
+      notificationToDelete &&
+      window.confirm(`Êtes-vous sûr de vouloir supprimer la notification "${notificationToDelete.title}" ?`)
+    ) {
+      void (async () => {
+        try {
+          await notificationService.deleteNotification(id);
+          await loadNotifications();
+        } catch (e) {
+          setLoadError(e instanceof Error ? e.message : 'Suppression impossible.');
+        }
+      })();
     }
   };
 
   const clearAllNotifications = () => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer toutes les notifications ? Cette action est irréversible.')) {
-      notificationService.clearAllNotifications();
-      setNotifications(notificationService.getNotifications());
+      void (async () => {
+        try {
+          await notificationService.clearAllNotifications();
+          await loadNotifications();
+        } catch (e) {
+          setLoadError(e instanceof Error ? e.message : 'Suppression impossible.');
+        }
+      })();
     }
   };
 
   const clearFilteredNotifications = () => {
     let message = '';
     let count = 0;
-    
+
     if (filter === 'unread') {
       count = unreadCount;
       message = `Êtes-vous sûr de vouloir supprimer les ${count} notification${count > 1 ? 's' : ''} non lue${count > 1 ? 's' : ''} ?`;
@@ -91,12 +128,16 @@ const Notifications: React.FC = () => {
       count = filteredNotifications.length;
       message = `Êtes-vous sûr de vouloir supprimer les ${count} notification${count > 1 ? 's' : ''} filtrée${count > 1 ? 's' : ''} ?`;
     }
-    
+
     if (window.confirm(message)) {
-      filteredNotifications.forEach(notification => {
-        notificationService.deleteNotification(notification.id);
-      });
-      setNotifications(notificationService.getNotifications());
+      void (async () => {
+        try {
+          await Promise.all(filteredNotifications.map((n) => notificationService.deleteNotification(n.id)));
+          await loadNotifications();
+        } catch (e) {
+          setLoadError(e instanceof Error ? e.message : 'Suppression impossible.');
+        }
+      })();
     }
   };
 
@@ -130,11 +171,16 @@ const Notifications: React.FC = () => {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-  const importantCount = notifications.filter(n => n.important).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  const importantCount = notifications.filter((n) => n.important).length;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-950/50 dark:text-red-200">
+          {loadError}
+        </div>
+      )}
       {/* Header */}
       <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8">
         <div className="flex items-center justify-between">
@@ -145,6 +191,7 @@ const Notifications: React.FC = () => {
           <div className="flex items-center space-x-2 sm:space-x-4">
             {notifications.length > 0 && (
               <button
+                type="button"
                 onClick={clearAllNotifications}
                 className="bg-red-50 text-red-600 hover:bg-red-100 px-3 sm:px-4 py-2 rounded-xl font-medium transition-colors flex items-center space-x-2"
               >
@@ -155,7 +202,8 @@ const Notifications: React.FC = () => {
             )}
             {unreadCount > 0 && (
               <button
-                onClick={markAllAsRead}
+                type="button"
+                onClick={() => void markAllAsRead()}
                 className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 sm:px-4 py-2 rounded-xl font-medium transition-colors flex items-center space-x-2"
               >
                 <Check className="w-4 h-4" />

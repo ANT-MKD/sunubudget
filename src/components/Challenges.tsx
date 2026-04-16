@@ -1,45 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Trophy, Star, Target, Award, Plus, Edit, Trash2, Calendar, Clock, CheckCircle, X, Search, Filter } from 'lucide-react';
+import React, { useState } from 'react';
+import { Trophy, Star, Target, Award, Plus, Edit, Trash2, Calendar, Clock, CheckCircle, X, Search } from 'lucide-react';
 import { useChallenges, useBadges } from '../hooks/useStorage';
 import { notificationService } from '../lib/notificationService';
-
-interface Challenge {
-  id: number;
-  title: string;
-  description: string;
-  progress: number;
-  reward: string;
-  deadline: string;
-  type: 'savings' | 'budget' | 'transactions' | 'custom';
-  status: 'active' | 'completed' | 'failed';
-  target?: number;
-  current?: number;
-}
-
-interface Badge {
-  id: number;
-  name: string;
-  description: string;
-  icon: string;
-  earned: boolean;
-  earnedDate?: string;
-  category: string;
-}
+import type { AppChallenge } from '../types';
 
 const Challenges: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'challenges' | 'badges'>('challenges');
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState<'create' | 'edit' | 'details'>('create');
-  const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
-  
+  const [selectedChallenge, setSelectedChallenge] = useState<AppChallenge | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
   // Filtres pour les défis
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Utiliser les hooks de stockage pour les défis et badges
-  const [challenges, setChallenges] = useChallenges();
-  const [badges, setBadges] = useBadges();
+  const { challenges, addChallenge, updateChallenge, deleteChallenge: removeChallenge } = useChallenges();
+  const { badges } = useBadges();
 
   // Filtrer les défis
   const filteredChallenges = challenges.filter(challenge => {
@@ -54,7 +32,7 @@ const Challenges: React.FC = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    type: 'custom' as Challenge['type'],
+    type: 'custom' as AppChallenge['type'],
     target: '',
     deadline: '',
     reward: ''
@@ -97,7 +75,7 @@ const Challenges: React.FC = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const openModal = (type: 'create' | 'edit' | 'details', challenge?: Challenge) => {
+  const openModal = (type: 'create' | 'edit' | 'details', challenge?: AppChallenge) => {
     setModalType(type);
     setSelectedChallenge(challenge || null);
     if (type === 'edit' && challenge) {
@@ -124,58 +102,88 @@ const Challenges: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (modalType === 'create') {
-      const newChallenge: Challenge = {
-        id: Date.now(),
-        title: formData.title,
-        description: formData.description,
-        progress: 0,
-        reward: formData.reward,
-        deadline: formData.deadline,
-        type: formData.type,
-        status: 'active',
-        target: formData.target ? parseInt(formData.target) : undefined,
-        current: 0
-      };
-      setChallenges(prev => [...prev, newChallenge]);
-      
-      // Créer une notification pour le nouveau défi
-      notificationService.createChallengeNotification(newChallenge, 'created');
-      
-    } else if (modalType === 'edit' && selectedChallenge) {
-      setChallenges(prev => prev.map(challenge => 
-        challenge.id === selectedChallenge.id 
-          ? { 
-              ...challenge, 
-              title: formData.title,
-              description: formData.description,
-              type: formData.type,
-              target: formData.target ? parseInt(formData.target) : undefined,
-              deadline: formData.deadline,
-              reward: formData.reward
-            }
-          : challenge
-      ));
+    setFormError(null);
+
+    const title = formData.title.trim();
+    const desc = formData.description.trim();
+    if (title.length < 2) {
+      setFormError('Le titre doit contenir au moins 2 caractères.');
+      return;
     }
-    setShowModal(false);
+    if (desc.length < 3) {
+      setFormError('La description doit contenir au moins 3 caractères.');
+      return;
+    }
+    if (!formData.deadline) {
+      setFormError('La date limite est obligatoire.');
+      return;
+    }
+    const deadlineDate = new Date(formData.deadline);
+    if (Number.isNaN(deadlineDate.getTime())) {
+      setFormError('Date limite invalide.');
+      return;
+    }
+
+    void (async () => {
+      try {
+        if (modalType === 'create') {
+          const payload: Omit<AppChallenge, 'id'> = {
+            title,
+            description: desc,
+            progress: 0,
+            reward: formData.reward.trim(),
+            deadline: formData.deadline,
+            type: formData.type,
+            status: 'active',
+            target: formData.target ? parseInt(formData.target, 10) : undefined,
+            current: 0,
+          };
+          await addChallenge(payload);
+          await notificationService.createChallengeNotification(
+            { title, description: desc, reward: formData.reward },
+            'created'
+          );
+        } else if (modalType === 'edit' && selectedChallenge) {
+          await updateChallenge(selectedChallenge.id, {
+            title,
+            description: desc,
+            type: formData.type,
+            target: formData.target ? parseInt(formData.target, 10) : undefined,
+            deadline: formData.deadline,
+            reward: formData.reward.trim(),
+          });
+        }
+        setShowModal(false);
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Enregistrement impossible.');
+      }
+    })();
   };
 
   const deleteChallenge = (id: number) => {
-    setChallenges(prev => prev.filter(challenge => challenge.id !== id));
+    void (async () => {
+      try {
+        await removeChallenge(id);
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Suppression impossible.');
+      }
+    })();
   };
 
   const completeChallenge = (id: number) => {
-    setChallenges(prev => prev.map(challenge => {
-      if (challenge.id === id) {
-        const completedChallenge = { ...challenge, status: 'completed' as const, progress: 100 };
-        
-        // Créer une notification pour le défi terminé
-        notificationService.createChallengeNotification(completedChallenge, 'completed');
-        
-        return completedChallenge;
+    void (async () => {
+      try {
+        const ch = challenges.find((c) => c.id === id);
+        if (!ch) return;
+        await updateChallenge(id, { status: 'completed', progress: 100 });
+        await notificationService.createChallengeNotification(
+          { title: ch.title, description: ch.description, reward: ch.reward },
+          'completed'
+        );
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Mise à jour impossible.');
       }
-      return challenge;
-    }));
+    })();
   };
 
   return (
@@ -489,6 +497,11 @@ const Challenges: React.FC = () => {
 
               {(modalType === 'create' || modalType === 'edit') && (
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {formError && (
+                    <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+                      {formError}
+                    </p>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Titre du défi</label>
                     <input

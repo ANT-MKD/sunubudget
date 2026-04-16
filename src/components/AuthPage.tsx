@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Lock,
@@ -9,8 +10,9 @@ import {
   UserPlus,
   Wallet,
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';
+import { useToast } from '../hooks/useToast';
 
 type AuthPageProps = {
   initialMode: 'login' | 'register';
@@ -20,16 +22,22 @@ type AuthPageProps = {
 const AUTH_HERO_IMAGE =
   'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=1400&q=85';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_RE = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+
 const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
-  const { login, register } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const { setTheme } = useTheme();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
-  const [email, setEmail] = useState('vous@samabudget.app');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -52,33 +60,130 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
     setTheme(dark ? 'light' : 'dark');
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    window.setTimeout(() => {
-      login(email, password);
-      setLoading(false);
-    }, 280);
-  };
+  const validatePassword = (pwd: string) => PASSWORD_RE.test(pwd);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!firstName.trim() || !lastName.trim()) {
-      setError('Le prénom et le nom sont obligatoires.');
+    setInfo(null);
+    const trimmed = email.trim();
+    if (!EMAIL_RE.test(trimmed)) {
+      setError('Adresse e-mail invalide.');
+      return;
+    }
+    if (!validatePassword(password)) {
+      setError('Mot de passe : au moins 8 caractères, une majuscule et un chiffre.');
       return;
     }
     setLoading(true);
-    window.setTimeout(() => {
-      const result = register(email, password, confirm, { firstName, lastName });
-      if (!result.ok) {
-        setError(result.error);
-        setLoading(false);
+    try {
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email: trimmed,
+        password,
+      });
+      if (err) {
+        setError(err.message);
         return;
       }
+      toast({ type: 'success', title: 'Connexion réussie' });
+      navigate('/dashboard', { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur de connexion.');
+    } finally {
       setLoading(false);
-    }, 280);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setInfo(null);
+
+    if (!acceptTerms) {
+      setError('Vous devez accepter les conditions d’utilisation et la politique de confidentialité.');
+      return;
+    }
+
+    const fn = firstName.trim();
+    const ln = lastName.trim();
+    if (!fn || !ln) {
+      setError('Le prénom et le nom sont obligatoires.');
+      return;
+    }
+
+    const trimmedEmail = email.trim();
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError('Adresse e-mail invalide.');
+      return;
+    }
+
+    if (!validatePassword(password)) {
+      setError('Mot de passe : au moins 8 caractères, une majuscule et un chiffre.');
+      return;
+    }
+
+    if (password !== confirm) {
+      setError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error: err } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+        options: {
+          data: {
+            first_name: fn,
+            last_name: ln,
+          },
+          emailRedirectTo: `${window.location.origin}/auth`,
+        },
+      });
+      if (err) {
+        setError(err.message);
+        return;
+      }
+      if (data.session) {
+        setInfo('Compte créé. Vous pouvez continuer.');
+        toast({ type: 'success', title: 'Compte créé' });
+        navigate('/dashboard', { replace: true });
+      } else {
+        setInfo(
+          'Inscription enregistrée. Vérifiez votre boîte mail et confirmez votre adresse avant de vous connecter.'
+        );
+        toast({ type: 'info', title: 'Confirmation e-mail requise' });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de l’inscription.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError(null);
+    setInfo(null);
+    const trimmed = email.trim();
+    if (!EMAIL_RE.test(trimmed)) {
+      setError('Indiquez une adresse e-mail valide pour la réinitialisation.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(trimmed, {
+        redirectTo: `${window.location.origin}/auth`,
+      });
+      if (err) {
+        setError(err.message);
+        return;
+      }
+      setInfo('Si un compte existe pour cette adresse, un e-mail de réinitialisation a été envoyé.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de l’envoi.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const inputShell =
@@ -90,7 +195,6 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
   return (
     <div className="min-h-screen bg-[#f6f7f9] dark:bg-[#0c0f14]">
       <div className="flex min-h-screen flex-col lg:flex-row">
-        {/* Aside — présentation (image différente de la landing) */}
         <aside
           className="relative order-1 flex min-h-[min(280px,42vh)] flex-col justify-between overflow-hidden lg:order-none lg:min-h-screen lg:w-[min(100%,440px)] lg:max-w-[42vw] lg:shrink-0 xl:max-w-[480px]"
           aria-label="Présentation"
@@ -137,7 +241,6 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
           </div>
         </aside>
 
-        {/* Formulaire */}
         <div className="relative order-2 flex flex-1 flex-col bg-[#f6f7f9] dark:bg-[#0c0f14]">
           <button
             type="button"
@@ -150,13 +253,13 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
 
           <div className="login-form-wrapper flex max-h-[100dvh] flex-1 flex-col justify-center overflow-y-auto px-5 py-12 sm:px-10 lg:max-h-none lg:px-14 xl:px-20">
             <div className="mx-auto w-full max-w-md">
-              {/* Onglets Connexion / Inscription */}
               <div className="mb-8 flex rounded-xl border border-slate-200/90 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
                 <button
                   type="button"
                   onClick={() => {
                     setMode('login');
                     setError(null);
+                    setInfo(null);
                   }}
                   className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition ${
                     mode === 'login'
@@ -172,6 +275,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
                   onClick={() => {
                     setMode('register');
                     setError(null);
+                    setInfo(null);
                   }}
                   className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition ${
                     mode === 'register'
@@ -220,18 +324,16 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
                   <>
                     <strong className="font-semibold text-slate-900 dark:text-slate-100">Sécurité &amp; accès</strong>
                     <p className="mt-1 leading-relaxed">
-                      Utilisez l’adresse e-mail et le mot de passe de votre compte. Vos données budgétaires sont associées à cette
-                      session sur cet appareil. Pensez à choisir un mot de passe robuste ; la réinitialisation par e-mail sera
-                      ajoutée lors du branchement du service d’authentification en ligne.
+                      Authentification sécurisée via Supabase. Utilisez un mot de passe fort ; la clé service reste côté
+                      serveur uniquement.
                     </p>
                   </>
                 ) : (
                   <>
                     <strong className="font-semibold text-slate-900 dark:text-slate-100">Profil</strong>
                     <p className="mt-1 leading-relaxed">
-                      Prénom, nom, e-mail et mot de passe suffisent pour commencer. Vous pourrez compléter téléphone, adresse,
-                      photo et autres informations dans <span className="font-medium">Infos personnelles</span> après votre
-                      première connexion.
+                      Prénom, nom, e-mail et mot de passe suffisent pour commencer. Vous pourrez compléter vos informations
+                      dans <span className="font-medium">Infos personnelles</span> après connexion.
                     </p>
                   </>
                 )}
@@ -243,6 +345,15 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
                   role="alert"
                 >
                   {error}
+                </p>
+              )}
+
+              {info && (
+                <p
+                  className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-100"
+                  role="status"
+                >
+                  {info}
                 </p>
               )}
 
@@ -306,9 +417,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
                     <button
                       type="button"
                       className="forgot-pwd font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-                      onClick={() => {
-                        /* démo : pas de flux réel */
-                      }}
+                      onClick={() => void handleForgotPassword()}
                     >
                       Mot de passe oublié&nbsp;?
                     </button>
@@ -430,6 +539,18 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
                     </div>
                   </div>
 
+                  <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={acceptTerms}
+                      onChange={(e) => setAcceptTerms(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900"
+                    />
+                    <span>
+                      J’accepte les conditions d’utilisation et la politique de confidentialité. <span className="text-red-500">*</span>
+                    </span>
+                  </label>
+
                   <button
                     type="submit"
                     disabled={loading}
@@ -457,8 +578,8 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
               </p>
 
               <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-600">
-                Vos données budgétaires sont enregistrées sur cet appareil. Une synchronisation sécurisée entre appareils pourra
-                être proposée dans une prochaine version du service.
+                Données protégées par Row Level Security (PostgreSQL) — chaque utilisateur n’accède qu’à ses propres
+                lignes.
               </p>
             </div>
           </div>

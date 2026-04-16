@@ -9,10 +9,10 @@ const Profile: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Utiliser les hooks pour récupérer les vraies données
-  const [transactions] = useTransactions();
-  const [savingsGoals] = useSavingsGoals();
-  const [challenges] = useChallenges();
-  const [profileData, setProfileData] = useUserProfile();
+  const { transactions } = useTransactions();
+  const { savingsGoals } = useSavingsGoals();
+  const { challenges } = useChallenges();
+  const { profileData, setProfileData, saveProfile } = useUserProfile();
 
   // Calculer les statistiques basées sur les vraies données
   const totalTransactions = transactions.length;
@@ -55,9 +55,18 @@ const Profile: React.FC = () => {
     }));
   };
 
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const handleSave = () => {
-    setIsEditing(false);
-    // Les données sont automatiquement sauvegardées via le hook
+    void (async () => {
+      setSaveError(null);
+      try {
+        await saveProfile(profileData);
+        setIsEditing(false);
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : 'Enregistrement impossible.');
+      }
+    })();
   };
 
   const initials = `${profileData.firstName?.trim()?.[0] || '?'}${
@@ -311,19 +320,28 @@ const Profile: React.FC = () => {
             </div>
 
             {isEditing && (
-              <div className="mt-6 flex justify-end space-x-4">
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="px-6 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleSave}
-                  className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-3 rounded-xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl"
-                >
-                  Sauvegarder
-                </button>
+              <div className="mt-6 space-y-4">
+                {saveError && (
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-950/50 dark:text-red-200" role="alert">
+                    {saveError}
+                  </p>
+                )}
+                <div className="flex justify-end space-x-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="px-6 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-3 rounded-xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl"
+                  >
+                    Sauvegarder
+                  </button>
+                </div>
               </div>
             )}
           </div>

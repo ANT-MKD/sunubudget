@@ -14,8 +14,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onPageChange }) => {
   const { user } = useAuth();
   const greetingName = user ? displayNameFromEmail(user.email) : 'Utilisateur';
   // Utiliser les hooks de stockage pour récupérer les vraies données
-  const [transactions] = useTransactions();
-  const [savingsGoals] = useSavingsGoals();
+  const { transactions } = useTransactions();
+  const { savingsGoals } = useSavingsGoals();
 
   const { totalIncome, totalExpense, balance, savingsRate, recentTransactions } = useMemo(() => {
     const totalIncome = transactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);

@@ -1,105 +1,57 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
-import { mergeUserProfile } from '../lib/storage';
-import type { UserProfileRegistrationFields } from '../types';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
-const STORAGE_KEY = 'sunubudget_session';
-
-export type AuthUser = {
-  email: string;
-};
-
-type AuthContextValue = {
-  user: AuthUser | null;
-  ready: boolean;
-  login: (email: string, password: string) => void;
-  register: (
-    email: string,
-    password: string,
-    confirmPassword: string,
-    profile: UserProfileRegistrationFields
-  ) => { ok: true } | { ok: false; error: string };
-  logout: () => void;
+export type AuthContextValue = {
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [ready, setReady] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as AuthUser;
-        if (parsed?.email && typeof parsed.email === 'string') {
-          setUser({ email: parsed.email });
-        }
-      }
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-    setReady(true);
-  }, []);
+    let mounted = true;
 
-  const persist = useCallback((next: AuthUser) => {
-    setUser(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  }, []);
-
-  const login = useCallback(
-    (email: string, _password: string) => {
-      const trimmed = email.trim();
-      const finalEmail = trimmed || 'utilisateur@exemple.com';
-      persist({ email: finalEmail });
-      mergeUserProfile({ email: finalEmail });
-    },
-    [persist]
-  );
-
-  const register = useCallback(
-    (email: string, password: string, confirmPassword: string, profile: UserProfileRegistrationFields) => {
-      if (password !== confirmPassword) {
-        return { ok: false as const, error: 'Les mots de passe ne correspondent pas.' };
-      }
-      if (password.length < 1) {
-        return { ok: false as const, error: 'Choisissez un mot de passe.' };
-      }
-      const trimmed = email.trim();
-      const finalEmail = trimmed || 'utilisateur@exemple.com';
-      mergeUserProfile({
-        firstName: profile.firstName.trim(),
-        lastName: profile.lastName.trim(),
-        email: finalEmail,
-        memberSince: new Date().toISOString(),
-        phone: '',
-        address: '',
-        birthDate: '',
-        occupation: '',
-        monthlyIncome: '',
-        avatarUrl: '',
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: s } }) => {
+        if (!mounted) return;
+        setSession(s);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
       });
-      persist({ email: finalEmail });
-      return { ok: true as const };
-    },
-    [persist]
-  );
 
-  const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem(STORAGE_KEY);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const value = useMemo(
-    () => ({ user, ready, login, register, logout }),
-    [user, ready, login, register, logout]
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+  }, []);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user: session?.user ?? null,
+      session,
+      loading,
+      signOut,
+    }),
+    [session, loading, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -108,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error('useAuth must be used within AuthProvider');
+    throw new Error('useAuth doit être utilisé dans AuthProvider');
   }
   return ctx;
 }
