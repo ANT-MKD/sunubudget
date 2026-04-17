@@ -515,6 +515,16 @@ const Landing: React.FC<LandingProps> = ({ onLogin, onRegister }) => {
                   </a>
                 </li>
                 <li>
+                  <a href="/privacy" className="hover:text-emerald-600 dark:hover:text-emerald-400">
+                    Politique de confidentialité
+                  </a>
+                </li>
+                <li>
+                  <a href="/terms" className="hover:text-emerald-600 dark:hover:text-emerald-400">
+                    Conditions d’utilisation
+                  </a>
+                </li>
+                <li>
                   <a href="#cta" className="hover:text-emerald-600 dark:hover:text-emerald-400">
                     Accès
                   </a>

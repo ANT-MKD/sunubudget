@@ -175,7 +175,7 @@ const Notifications: React.FC = () => {
   const importantCount = notifications.filter((n) => n.important).length;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-white to-gray-50 p-4 pb-24 dark:from-gray-900 dark:to-gray-800 sm:p-6 lg:p-8">
       {loadError && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-950/50 dark:text-red-200">
           {loadError}
@@ -183,7 +183,7 @@ const Notifications: React.FC = () => {
       )}
       {/* Header */}
       <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Notifications</h1>
             <p className="text-gray-600 text-lg">Restez informé de vos activités financières</p>

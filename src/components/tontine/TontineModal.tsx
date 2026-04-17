@@ -200,6 +200,7 @@ const TontineModal: React.FC<TontineModalProps> = ({
                 <input
                   type="number"
                   name="amount"
+                  inputMode="numeric"
                   value={memberFormData.amount}
                   onChange={onMemberInputChange}
                   placeholder={selectedTontine.montantCotisation.toString()}

@@ -547,7 +547,15 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack }) => {
                       className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900"
                     />
                     <span>
-                      J’accepte les conditions d’utilisation et la politique de confidentialité. <span className="text-red-500">*</span>
+                      J’accepte les{' '}
+                      <a href="/terms" target="_blank" rel="noreferrer" className="font-semibold text-emerald-600 hover:underline dark:text-emerald-400">
+                        conditions d’utilisation
+                      </a>{' '}
+                      et la{' '}
+                      <a href="/privacy" target="_blank" rel="noreferrer" className="font-semibold text-emerald-600 hover:underline dark:text-emerald-400">
+                        politique de confidentialité
+                      </a>
+                      . <span className="text-red-500">*</span>
                     </span>
                   </label>
 

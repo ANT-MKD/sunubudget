@@ -49,6 +49,13 @@ async function insertNotification(row: {
 }
 
 class NotificationService {
+  private async getCurrentUserId(): Promise<string | null> {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return user?.id ?? null;
+  }
+
   async createTransactionNotification(transaction: {
     type: string;
     amount: number;
@@ -186,6 +193,47 @@ class NotificationService {
       action: 'Voir le budget',
       category: 'budget',
     });
+  }
+
+  async checkAndNotifyBudgetThreshold(category: string): Promise<void> {
+    const userId = await this.getCurrentUserId();
+    if (!userId) return;
+
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    const from = new Date(year, now.getMonth(), 1).toISOString().slice(0, 10);
+    const to = new Date(year, now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+    const { data: budgetRow, error: budgetError } = await supabase
+      .from('category_budgets')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('category', category)
+      .eq('month', month)
+      .eq('year', year)
+      .maybeSingle();
+    if (budgetError || !budgetRow) return;
+
+    const { data: expenses, error: expensesError } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('type', 'expense')
+      .eq('category', category)
+      .gte('date', from)
+      .lte('date', to);
+    if (expensesError) return;
+
+    const spent = (expenses || []).reduce((sum, row) => sum + Number((row as { amount: number }).amount), 0);
+    const budget = Number((budgetRow as { amount: number }).amount);
+    if (!Number.isFinite(budget) || budget <= 0) return;
+
+    if (spent >= budget) {
+      await this.createBudgetNotification('exceeded', spent, budget);
+    } else if (spent >= budget * 0.8) {
+      await this.createBudgetNotification('warning', spent, budget);
+    }
   }
 
   async createSystemNotification(

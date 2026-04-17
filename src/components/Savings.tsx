@@ -224,17 +224,17 @@ const Savings: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-white to-gray-50 p-4 pb-24 dark:from-gray-900 dark:to-gray-800 sm:p-6">
       {/* Header */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-700 mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">Objectifs d'Épargne</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">Gérez vos objectifs d'épargne et suivez vos progrès</p>
           </div>
           <button 
             onClick={() => openModal('create')}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl hover:-translate-y-1"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl sm:px-6"
           >
             <Plus className="w-4 h-4" />
             <span>Nouvel Objectif</span>
@@ -504,6 +504,7 @@ const Savings: React.FC = () => {
                       <input
                         type="number"
                         name="target"
+                        inputMode="numeric"
                         value={formData.target}
                         onChange={handleInputChange}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -655,6 +656,7 @@ const Savings: React.FC = () => {
                       <input
                         type="number"
                         name="amount"
+                        inputMode="numeric"
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                         placeholder="25000"
                         required

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { 
   BarChart3, 
+  CircleDollarSign,
   CreditCard, 
   PiggyBank, 
   TrendingUp, 
@@ -41,6 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, isOpen = f
     { id: 'challenges', label: 'Défis', icon: Trophy, badge: activeChallengesCount > 0 ? activeChallengesCount.toString() : null },
     { id: 'profile', label: 'Profil', icon: User, badge: null },
     { id: 'tontine', label: 'Tontine', icon: Users, badge: null },
+    { id: 'budget', label: 'Budgets', icon: CircleDollarSign, badge: null },
   ];
 
   const bottomItems = [

@@ -28,6 +28,15 @@ export interface Transaction {
   date: string;
   amount: number;
   status: TransactionStatus;
+  receiptUrl?: string | null;
+}
+
+export interface CategoryBudget {
+  id: number;
+  category: string;
+  amount: number;
+  month: number;
+  year: number;
 }
 
 export interface SavingsGoal {

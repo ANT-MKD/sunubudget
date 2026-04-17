@@ -104,17 +104,17 @@ const Profile: React.FC = () => {
   ];
 
   return (
-    <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-white to-gray-50 p-4 pb-24 dark:from-gray-900 dark:to-gray-800 sm:p-6 lg:p-8">
       {/* Header */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-700 mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">Mon Profil</h1>
             <p className="text-gray-600 dark:text-gray-400 text-lg">Gérez vos informations personnelles et préférences</p>
           </div>
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-4 rounded-2xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl hover:-translate-y-1"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-3 rounded-2xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg"
           >
             <Edit className="w-5 h-5" />
             <span>{isEditing ? 'Annuler' : 'Modifier'}</span>
@@ -311,6 +311,7 @@ const Profile: React.FC = () => {
                 <input
                   type="number"
                   name="monthlyIncome"
+                  inputMode="numeric"
                   value={profileData.monthlyIncome}
                   onChange={handleInputChange}
                   disabled={!isEditing}

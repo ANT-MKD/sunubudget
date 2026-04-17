@@ -6,6 +6,7 @@ import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '../lib/storage';
 import type {
   AppBadge,
   AppChallenge,
+  CategoryBudget,
   SavingsGoal,
   TontineGroup,
   TontineMember,
@@ -66,6 +67,17 @@ function mapTransactionRow(row: Record<string, unknown>): Transaction {
     date: String(row.date),
     amount: Number(row.amount),
     status: row.status as Transaction['status'],
+    receiptUrl: row.receipt_url ? String(row.receipt_url) : null,
+  };
+}
+
+function mapCategoryBudgetRow(row: Record<string, unknown>): CategoryBudget {
+  return {
+    id: Number(row.id),
+    category: String(row.category),
+    amount: Number(row.amount),
+    month: Number(row.month),
+    year: Number(row.year),
   };
 }
 
@@ -197,6 +209,7 @@ export function useTransactions() {
       date: input.date,
       amount: input.amount,
       status: input.status,
+      receipt_url: input.receiptUrl ?? null,
     };
     const { data, error: e } = await supabase.from('transactions').insert(row).select('*').single();
     if (e) {
@@ -217,6 +230,7 @@ export function useTransactions() {
         ...(partial.date !== undefined ? { date: partial.date } : {}),
         ...(partial.amount !== undefined ? { amount: partial.amount } : {}),
         ...(partial.status !== undefined ? { status: partial.status } : {}),
+        ...(partial.receiptUrl !== undefined ? { receipt_url: partial.receiptUrl } : {}),
       })
       .eq('id', id)
       .eq('user_id', user.id)
@@ -257,6 +271,85 @@ export function useTransactions() {
     deleteTransaction,
     clearAllTransactions,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Budgets par catégorie
+// ---------------------------------------------------------------------------
+
+export function useCategoryBudgets() {
+  const { user, loading: authLoading } = useAuth();
+  const [budgets, setBudgets] = useState<CategoryBudget[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(
+    async (month?: number, year?: number) => {
+      if (!user?.id) {
+        setBudgets([]);
+        setLoading(false);
+        return;
+      }
+      const now = new Date();
+      const targetMonth = month ?? now.getMonth() + 1;
+      const targetYear = year ?? now.getFullYear();
+
+      setLoading(true);
+      setError(null);
+      const { data, error: e } = await supabase
+        .from('category_budgets')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('month', targetMonth)
+        .eq('year', targetYear)
+        .order('category', { ascending: true });
+
+      if (e) {
+        setError(e.message);
+        enqueueOfflineOperation('category_budgets', 'select', {
+          user_id: user.id,
+          month: targetMonth,
+          year: targetYear,
+        });
+      } else {
+        setBudgets((data || []).map((r) => mapCategoryBudgetRow(r as Record<string, unknown>)));
+      }
+      setLoading(false);
+    },
+    [user?.id]
+  );
+
+  useEffect(() => {
+    if (authLoading) return;
+    void refresh();
+  }, [authLoading, refresh]);
+
+  const upsertBudget = async (payload: { category: string; amount: number; month: number; year: number }) => {
+    if (!user?.id) throw new Error('Non authentifié');
+    const row = {
+      user_id: user.id,
+      category: payload.category,
+      amount: payload.amount,
+      month: payload.month,
+      year: payload.year,
+    };
+    const { data, error: e } = await supabase
+      .from('category_budgets')
+      .upsert(row, { onConflict: 'user_id,category,month,year' })
+      .select('*')
+      .single();
+    if (e) throw e;
+    const mapped = mapCategoryBudgetRow(data as Record<string, unknown>);
+    setBudgets((prev) => {
+      const idx = prev.findIndex(
+        (b) => b.category === mapped.category && b.month === mapped.month && b.year === mapped.year
+      );
+      if (idx === -1) return [...prev, mapped].sort((a, b) => a.category.localeCompare(b.category));
+      return prev.map((b, i) => (i === idx ? mapped : b));
+    });
+  };
+
+  return { budgets, loading, error, refresh, upsertBudget };
 }
 
 // ---------------------------------------------------------------------------

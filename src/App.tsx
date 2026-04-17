@@ -8,6 +8,8 @@ import AuthPage from './components/AuthPage';
 import { AppMain } from './AppMain';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ui/feedback/ErrorBoundary';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
 
 function HomeRoute() {
   const { user, loading } = useAuth();
@@ -59,6 +61,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<HomeRoute />} />
       <Route path="/auth" element={<AuthRoute />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       <Route
         path="/dashboard"
         element={

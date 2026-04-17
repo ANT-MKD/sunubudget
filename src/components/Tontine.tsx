@@ -304,9 +304,9 @@ const Tontine: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-white to-gray-50 p-4 pb-24 dark:from-gray-900 dark:to-gray-800 sm:p-6">
       <div className="bg-white rounded-3xl p-6 shadow-xl border border-gray-100 mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
               Tontines
@@ -316,7 +316,7 @@ const Tontine: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('create')}
-            className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-2xl font-medium hover:from-purple-700 hover:to-purple-800 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl hover:-translate-y-1"
+            className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-5 py-3 rounded-2xl font-medium hover:from-purple-700 hover:to-purple-800 transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg"
           >
             <Plus className="w-5 h-5" />
             <span>Créer une Tontine</span>

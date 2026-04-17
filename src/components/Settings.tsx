@@ -3,6 +3,8 @@ import { Settings as SettingsIcon, Bell, Shield, Palette, Globe, Download, Trash
 import { useUserSettings } from '../hooks/useStorage';
 import { STORAGE_KEYS, clearAllStorage, loadFromStorage, isStorageAvailable } from '../lib/storage';
 import ThemeToggle from './ThemeToggle';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 const Settings: React.FC = () => {
   const [activeSection, setActiveSection] = useState<'general' | 'notifications' | 'security' | 'appearance' | 'data'>('general');
@@ -11,6 +13,10 @@ const Settings: React.FC = () => {
   const [settings, setSettings] = useUserSettings();
   const [dataMessage, setDataMessage] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const { user, signOut } = useAuth();
 
   const handleToggle = (section: string, key: string) => {
     setSettings(prev => ({
@@ -99,6 +105,54 @@ const Settings: React.FC = () => {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    setDataError(null);
+    setDataMessage(null);
+
+    if (!user?.email) {
+      setDataError('Utilisateur non authentifié.');
+      return;
+    }
+    if (!deletePassword.trim()) {
+      setDataError('Veuillez saisir votre mot de passe pour confirmer.');
+      return;
+    }
+    if (deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER') {
+      setDataError('Tapez "SUPPRIMER" pour confirmer la suppression du compte.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Cette action supprimera définitivement votre compte et vos données. Voulez-vous continuer ?'
+    );
+    if (!confirmed) return;
+
+    setDeleteLoading(true);
+    try {
+      const { error: authErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: deletePassword,
+      });
+      if (authErr) {
+        setDataError('Mot de passe incorrect. La suppression a été annulée.');
+        return;
+      }
+
+      const { error: fnErr } = await supabase.functions.invoke('delete-account', {
+        body: { confirm: true },
+      });
+      if (fnErr) throw fnErr;
+
+      clearAllStorage();
+      await signOut();
+      window.location.href = '/';
+    } catch (error) {
+      setDataError(error instanceof Error ? error.message : 'Suppression impossible pour le moment.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const sections = [
     { id: 'general', label: 'Général', icon: SettingsIcon },
     { id: 'notifications', label: 'Notifications', icon: Bell },
@@ -108,7 +162,7 @@ const Settings: React.FC = () => {
   ];
 
   return (
-    <div className="p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+    <div className="min-h-screen bg-gradient-to-br from-white to-gray-50 p-4 pb-24 dark:from-gray-900 dark:to-gray-800 sm:p-6">
       {/* Header */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-700 mb-8">
         <div>
@@ -252,6 +306,46 @@ const Settings: React.FC = () => {
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>
+                  </div>
+
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/40 dark:bg-red-900/10">
+                    <div className="mb-3 flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-red-100 to-red-200 rounded-xl flex items-center justify-center">
+                        <Trash2 className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-red-900 dark:text-red-300">Zone dangereuse : supprimer mon compte</div>
+                        <div className="text-sm text-red-700 dark:text-red-400">
+                          Cette action efface définitivement votre compte, vos données et vos fichiers reçus.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <input
+                        type="password"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-red-500"
+                        placeholder="Retapez votre mot de passe"
+                      />
+                      <input
+                        type="text"
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-red-500"
+                        placeholder='Tapez "SUPPRIMER"'
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteAccount()}
+                      disabled={deleteLoading}
+                      className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {deleteLoading ? 'Suppression en cours...' : 'Supprimer mon compte'}
+                    </button>
                   </div>
                 </div>
               </div>

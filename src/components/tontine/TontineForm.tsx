@@ -46,6 +46,7 @@ const TontineForm: React.FC<TontineFormProps> = ({ formData, onChange, onSubmit,
             <input
               type="number"
               name="montantCotisation"
+              inputMode="numeric"
               value={formData.montantCotisation}
               onChange={onChange}
               placeholder="50000"
@@ -74,6 +75,7 @@ const TontineForm: React.FC<TontineFormProps> = ({ formData, onChange, onSubmit,
             <input
               type="number"
               name="totalMembers"
+              inputMode="numeric"
               value={formData.totalMembers}
               onChange={onChange}
               placeholder="12"

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, Filter, Search, Calendar, ArrowUpRight, ArrowDownRight, Edit, Trash2, Download, X, DollarSign, ChevronLeft, ChevronRight, Trash } from 'lucide-react';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, Edit, Trash2, Download, DollarSign, ChevronLeft, ChevronRight, Trash, Paperclip } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input, Select, Modal, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } from './ui';
 import { useTransactions } from '../hooks/useStorage';
 import { notificationService } from '../lib/notificationService';
+import { useAuth } from '../contexts/AuthContext';
+import { createReceiptSignedUrl, uploadReceipt } from '../lib/receiptUpload';
 import type { Transaction } from '../types';
 
 const Transactions: React.FC = () => {
@@ -14,6 +16,10 @@ const Transactions: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [formError, setFormError] = useState<string | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [receiptSignedUrl, setReceiptSignedUrl] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const { transactions, addTransaction, updateTransaction, deleteTransaction: removeTransaction, clearAllTransactions } =
     useTransactions();
@@ -58,10 +64,24 @@ const Transactions: React.FC = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleReceiptFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    e.target.value = '';
+    setReceiptFile(file);
+    if (!file) {
+      setReceiptPreview(null);
+      return;
+    }
+    setReceiptPreview(URL.createObjectURL(file));
+  };
+
   const openModal = (type: 'create' | 'edit' | 'details', transaction?: Transaction) => {
     setModalType(type);
     setSelectedTransaction(transaction || null);
     setFormError(null);
+    setReceiptFile(null);
+    setReceiptPreview(null);
+    setReceiptSignedUrl(null);
     if (type === 'edit' && transaction) {
       setFormData({
         type: transaction.type,
@@ -71,6 +91,12 @@ const Transactions: React.FC = () => {
         amount: transaction.amount.toString(),
         status: transaction.status
       });
+      if (transaction.receiptUrl) {
+        void (async () => {
+          const signedUrl = await createReceiptSignedUrl(transaction.receiptUrl as string);
+          setReceiptSignedUrl(signedUrl);
+        })();
+      }
     } else if (type === 'create') {
       setFormData({
         type: 'expense',
@@ -80,6 +106,11 @@ const Transactions: React.FC = () => {
         amount: '',
         status: 'completed'
       });
+    } else if (type === 'details' && transaction?.receiptUrl) {
+      void (async () => {
+        const signedUrl = await createReceiptSignedUrl(transaction.receiptUrl as string);
+        setReceiptSignedUrl(signedUrl);
+      })();
     }
     setShowModal(true);
   };
@@ -111,6 +142,12 @@ const Transactions: React.FC = () => {
 
     void (async () => {
       try {
+        let receiptUrl: string | null | undefined = undefined;
+        if (receiptFile) {
+          if (!user?.id) throw new Error('Utilisateur non authentifié.');
+          receiptUrl = await uploadReceipt(user.id, receiptFile);
+        }
+
         if (modalType === 'create') {
           await addTransaction({
             type: formData.type,
@@ -119,12 +156,16 @@ const Transactions: React.FC = () => {
             date: formData.date,
             amount: amountValue,
             status: formData.status,
+            receiptUrl: receiptUrl ?? null,
           });
           await notificationService.createTransactionNotification({
             type: formData.type,
             amount: amountValue,
             category: formData.category,
           });
+          if (formData.type === 'expense') {
+            await notificationService.checkAndNotifyBudgetThreshold(formData.category.trim());
+          }
         } else if (modalType === 'edit' && selectedTransaction) {
           await updateTransaction(selectedTransaction.id, {
             type: formData.type,
@@ -133,15 +174,25 @@ const Transactions: React.FC = () => {
             date: formData.date,
             amount: amountValue,
             status: formData.status,
+            ...(receiptUrl !== undefined
+              ? { receiptUrl }
+              : selectedTransaction.receiptUrl !== undefined
+                ? { receiptUrl: selectedTransaction.receiptUrl }
+                : {}),
           });
           await notificationService.createSystemNotification(
             'Transaction modifiée',
             `${formData.type === 'income' ? 'Revenu' : 'Dépense'} modifié : ${formData.amount} F CFA pour ${formData.category}`,
             'success'
           );
+          if (formData.type === 'expense') {
+            await notificationService.checkAndNotifyBudgetThreshold(formData.category.trim());
+          }
         }
         setFormError(null);
         setShowModal(false);
+        setReceiptFile(null);
+        setReceiptPreview(null);
       } catch (err) {
         setFormError(err instanceof Error ? err.message : 'Enregistrement impossible.');
       }
@@ -438,18 +489,18 @@ const Transactions: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-white to-gray-50 p-4 pb-24 dark:from-gray-900 dark:to-gray-800 sm:p-6">
       {/* Header */}
       <Card className="mb-6">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-2xl bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
                 Transactions
               </CardTitle>
               <p className="text-gray-600 dark:text-gray-400 mt-1">Gérez toutes vos transactions financières</p>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2">
               {transactions.length > 0 && (
                 <Button 
                   variant="outline"
@@ -588,6 +639,42 @@ const Transactions: React.FC = () => {
             </div>
           ) : (
             <>
+              <div className="space-y-3 p-4 md:hidden">
+                {paginatedTransactions.map((transaction) => (
+                  <div key={transaction.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-gray-900 dark:text-white">{transaction.description}</p>
+                        <p className="text-sm text-gray-500">{transaction.category}</p>
+                      </div>
+                      <Badge variant={transaction.status === 'completed' ? 'success' : 'warning'} size="sm">
+                        {transaction.status === 'completed' ? 'Terminé' : 'En attente'}
+                      </Badge>
+                    </div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-xs text-gray-500">{transaction.date}</span>
+                      <span className={`text-base font-bold ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                        {transaction.type === 'income' ? '+' : '-'}{transaction.amount.toLocaleString()} F CFA
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => openModal('details', transaction)} className="flex-1">
+                        Détails
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openModal('edit', transaction)} icon={Edit} />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteTransaction(transaction.id)}
+                        icon={Trash2}
+                        className="text-red-600"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -597,6 +684,7 @@ const Transactions: React.FC = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Montant</TableHead>
                     <TableHead>Statut</TableHead>
+                    <TableHead>Reçu</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -643,6 +731,9 @@ const Transactions: React.FC = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
+                        {transaction.receiptUrl ? <Paperclip className="h-4 w-4 text-emerald-600" /> : <span className="text-xs text-gray-400">—</span>}
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center space-x-1">
                           <Button
                             variant="ghost"
@@ -674,6 +765,7 @@ const Transactions: React.FC = () => {
                   ))}
                 </TableBody>
               </Table>
+              </div>
 
               {/* Pagination */}
               {totalPages > 1 && (
@@ -800,6 +892,7 @@ const Transactions: React.FC = () => {
                         label="Montant (F CFA)"
                         type="number"
                         name="amount"
+                        inputMode="numeric"
                         value={formData.amount}
                         onChange={handleInputChange}
                         placeholder="15000"
@@ -807,6 +900,22 @@ const Transactions: React.FC = () => {
                         min="1"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Reçu (optionnel)</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleReceiptFile}
+                      className="block w-full rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-600 dark:bg-gray-800"
+                    />
+                    {(receiptPreview || selectedTransaction?.receiptUrl) && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        {receiptFile ? 'Nouveau reçu prêt pour upload.' : 'Un reçu est déjà associé à cette transaction.'}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -892,6 +1001,17 @@ const Transactions: React.FC = () => {
                       </span>
                     </div>
                   </div>
+
+                  {(receiptSignedUrl || selectedTransaction.receiptUrl) && (
+                    <div className="rounded-xl bg-gray-50 p-4">
+                      <h4 className="mb-2 text-sm font-semibold text-gray-700">Reçu</h4>
+                      {receiptSignedUrl ? (
+                        <img src={receiptSignedUrl} alt="Reçu de transaction" className="max-h-72 w-full rounded-lg object-contain" />
+                      ) : (
+                        <p className="text-sm text-gray-500">Chargement du reçu...</p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex space-x-3">
                     <Button
